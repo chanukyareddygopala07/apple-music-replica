@@ -109,3 +109,24 @@ test('unknown route shows not-found', async ({ page }) => {
   await page.goto('/definitely-not-a-page')
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
 })
+
+test('credential-less build never contacts MusicKit and keeps the demo search path', async ({ page }) => {
+  const musicKitRequests: string[] = []
+  page.on('request', (req) => {
+    const url = req.url()
+    if (url.includes('music.apple.com') || url.includes('musickit')) musicKitRequests.push(url)
+  })
+
+  // Home + search (the only view that consults the catalogue providers).
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible()
+  await page.goto('/search')
+  await page.fill('#search-input', 'harbor')
+  await expect(page.locator('.top-result, .list-rows .song-row').first()).toBeVisible({ timeout: 10_000 })
+
+  expect(musicKitRequests).toEqual([])
+  const musicKitGlobal = await page.evaluate(() => typeof (window as unknown as { MusicKit?: unknown }).MusicKit)
+  expect(musicKitGlobal).toBe('undefined')
+  const cdnScripts = await page.locator('script[src*="music.apple.com"]').count()
+  expect(cdnScripts).toBe(0)
+})

@@ -56,17 +56,32 @@ Other scripts:
 
 ## Optional Apple Music (MusicKit) provider
 
-Sonora ships an optional, defensive MusicKit provider (`src/data/musickit-provider.ts`).
+Sonora ships an optional, defensive MusicKit provider (`src/data/musickit-provider.ts`)
+with M1 secure token plumbing (`src/data/musickit-token.ts`).
 
-- Requires an Apple Developer account; you create a MusicKit key (`.p8`) and
-  **sign a developer token on a server** (the private key must never reach the
-  browser). Put the signed token in `.env` as `VITE_MUSICKIT_DEVELOPER_TOKEN`.
+- **The `.p8` private key never enters this repository or the browser.** It
+  lives only on a separate private token-signing service that returns
+  `{"token":"<ES256 JWT>"}`; that service also asserts Apple's recommended
+  `origin` claim.
+- **Two-key activation gate:** MusicKit activates only when both are set:
+  `VITE_MUSICKIT_ENABLED=1` **and** a token source — either
+  `VITE_MUSICKIT_TOKEN_URL` (runtime fetch with caching, 60s-before-expiry
+  refresh, single-flight requests, typed error handling) or, for local
+  development only, a pre-signed `VITE_MUSICKIT_DEVELOPER_TOKEN`. With no
+  env vars the app is pure demo mode: **no token fetch, no MusicKit CDN
+  script, no MusicKit request** (asserted by unit and e2e tests).
+- A failing token service or MusicKit initialization **never breaks demo
+  playback** — the provider resolves to null and the catalogue facade falls
+  back to the demo provider.
 - Even with a token, catalogue **streaming** requires user authorization and an
   active Apple Music subscription, and is routed through MusicKit's own engine.
-- This project implements catalogue **search + entity mapping only**, activates
-  only when a token is present, and makes **no claim that MusicKit streaming
-  works here** — it has not been tested with credentials. Demo mode is fully
-  functional without any of this.
+- This project implements catalogue **search + entity mapping only** and makes
+  **no claim that MusicKit initialization or streaming works here** — the
+  plumbing is tested with mocks, but live `MusicKit.configure()` has **not**
+  been verified because no signing service or Apple credentials are available
+  (external prerequisites: Apple Developer Program, media identifier, `.p8`,
+  and the token-signing service). Demo mode is fully functional without any
+  of this.
 
 ## Layout
 

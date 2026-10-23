@@ -1,8 +1,10 @@
 # Apple MusicKit integration — milestone plan (M1–M5)
 
-Status: **approved plan — not implemented**. This document is the deliverable; no
-MusicKit code ships with it. The demo player remains the default and only
-playback path until every milestone below is independently verified.
+Status: **approved plan — M1 implemented** (secure token plumbing +
+conditional initialization; credential-less gates extended to 89 unit / 11
+e2e). Live MusicKit initialization is **not yet verified** (blocked on
+external prerequisites, see §5 M1). M2–M5 not implemented. The demo player
+remains the default and only playback path.
 
 Companion docs: `replica/recon.md`, `replica/build-log.md`, `../../README.md`.
 
@@ -143,6 +145,9 @@ and a green quality-gate run. Nothing merges if credential-less gates regress.
 
 ### M1 — Token plumbing (no UI change)
 
+**Status: implemented in this repo (commit `feat: add secure MusicKit token
+plumbing`) — live acceptance criterion blocked on external prerequisites.**
+
 - **Work:** build/stand up the token-signing service (P4) holding the `.p8`;
   this repo gains runtime token acquisition (`VITE_MUSICKIT_TOKEN_URL` or
   local-dev `VITE_MUSICKIT_DEVELOPER_TOKEN` in git-ignored `.env`), an
@@ -150,14 +155,52 @@ and a green quality-gate run. Nothing merges if credential-less gates regress.
   `musickit-provider` (search-only, as today). Include the recommended `origin`
   claim listing the site origin. Optionally add a secret-scan CI step.
 - **Depends on:** P1–P5.
-- **Acceptance criteria:**
-  1. Manual harness: `musickit.configure({ developerToken })` resolves and a
-     catalog search request succeeds with the token (validating M1 empirically
-     **including the origin-claim/github.io question in §8**).
-  2. With no env vars, behavior is byte-for-byte today's demo mode; no
-     MusicKit CDN request is made (asserted in a test).
-  3. No secrets in the repo (staged-diff secret scan clean); all quality
-     gates green.
+- **Delivered in this repo:**
+  - `src/data/musickit-token.ts` — two-key gate
+    (`VITE_MUSICKIT_ENABLED` + token source); token-service fetch returning
+    JSON `{ "token" }` (alias `{ "developerToken" }`); JWT shape and `exp`
+    validation (expired tokens rejected before use); cache refresh 60s before
+    expiry (open question §8.3: short-lived signer policies will naturally
+    refetch every time); 5-minute fallback TTL when `exp` is unreadable;
+    single-flight fetches; 8s request timeout; HTTP status, network,
+    malformed-JSON, missing/malformed-token errors as typed `TokenError`s
+    whose messages never contain token material, response bodies, or headers.
+  - `src/data/musickit-provider.ts` — gate checked **before any network
+    activity**; token fetched **before** the CDN script is injected (a failing
+    token service produces zero MusicKit requests); single-flight SDK loader
+    that short-circuits when `window.MusicKit` already exists; on
+    `configure()` rejection with a dynamic source: one forced token refresh
+    + one retry (static local-dev tokens do not retry); `init()` never throws
+    (resolves null → catalogue facade falls back to demo); Settings
+    descriptions via `describeMusicKitConfig` (never include tokens).
+  - `.env.example` + README document the public config, the signing service
+    as the only `.p8` holder, and the honest verification status.
+- **Acceptance criteria — actual results:**
+  1. **NOT MET — blocked.** Live `musickit.configure()` + catalog search with
+     a real token could not be run: no Apple Developer Program credentials,
+     media identifier, `.p8`, or token-signing service exist in this
+     environment (external prerequisites P1–P4; only the public browser-side
+     URL config `VITE_MUSICKIT_TOKEN_URL`/`VITE_MUSICKIT_ENABLED` belongs in
+     this repo, per hard rule 1–2). **No live MusicKit initialization is
+     claimed anywhere in this repo's docs.** The §8.1 domain/origin empirical
+     question therefore also remains open — settled only when a real signer
+     can issue a token for testing.
+  2. **MET.** With no env vars: demo behavior unchanged; no MusicKit CDN
+     script, no `window.MusicKit`, no token fetch (unit: credential-less
+     provider/facade tests asserting zero `fetch` and zero script injection;
+     e2e: `credential-less build never contacts MusicKit…` asserts zero
+     `music.apple.com` requests across home + search, no CDN script, no
+     MusicKit global on the built preview).
+  3. **MET.** Staged-diff secret scan clean (no tokens/keys/bodies); quality
+     gates green: lint, typecheck, **89/89 unit (+42)**, **11/11 e2e (+1)**,
+     production build.
+- **Remaining blockers:** (a) external prerequisites P1–P4 — Apple Developer
+  Program membership, media identifier + `.p8`/`kid`, and a deployed
+  token-signing service (the precise missing pieces for criterion 1);
+  (b) one live session against that service to settle §8.1 (domain/origin on
+  `*.github.io`) and §8.3 (real token lifetimes vs. the refresh margin);
+  (c) secret-scan CI step still optional/not added (manual staged-diff scan
+  performed instead).
 
 ### M2 — User authorization
 
@@ -303,3 +346,9 @@ and a green quality-gate run. Nothing merges if credential-less gates regress.
 - 2026-10-24 — Initial approved plan. Domain-verification question checked
   against current official Apple documentation (§3) and demoted to an open
   question (§8); earlier custom-domain assumption retracted pending M1.
+- 2026-10-24 — **M1 implemented**: secure runtime token plumbing
+  (`src/data/musickit-token.ts`) + conditional, fail-open initialization in
+  `src/data/musickit-provider.ts`; gates extended to 89 unit / 11 e2e tests
+  (credential-less invariants included). Live `MusicKit.configure()` remains
+  unverified — blocked on external P1–P4 prerequisites; §8.1 and §8.3 still
+  open pending a real token-signing service.

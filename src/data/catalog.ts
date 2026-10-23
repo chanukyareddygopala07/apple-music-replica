@@ -2,9 +2,10 @@
  * Catalogue facade. UI always talks to this module, never to a concrete
  * provider — so a real provider (e.g. MusicKit) can be swapped in later.
  *
- * Default: demo catalogue (no credentials). When VITE_MUSICKIT_DEVELOPER_TOKEN
- * is present, MusicKit is attempted for *search only*; any failure falls back
- * to the demo catalogue transparently.
+ * Default: demo catalogue (no credentials). When the MusicKit two-key gate
+ * passes (VITE_MUSICKIT_ENABLED + a token source — see data/musickit-token.ts),
+ * MusicKit is attempted for *search only*; any failure falls back to the demo
+ * catalogue transparently.
  */
 
 import type { CatalogProvider, CatalogProviderInfo, SearchResults } from '@/domain/types'

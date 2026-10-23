@@ -4,15 +4,21 @@
  * Verified requirements (https://developer.apple.com/musickit/):
  * - A developer token signed with a .p8 private key from the Apple Developer
  *   Program (Certificates, Identifiers & Profiles). Signing MUST happen on a
- *   server; only the resulting token reaches the browser. Set it via the
- *   VITE_MUSICKIT_DEVELOPER_TOKEN build-time variable.
+ *   server; only the resulting token reaches the browser. M1 plumbing:
+ *   fetch it at runtime from VITE_MUSICKIT_TOKEN_URL, or use a pre-signed
+ *   VITE_MUSICKIT_DEVELOPER_TOKEN for local development only.
+ * - Activation is a two-key gate (VITE_MUSICKIT_ENABLED + a token source);
+ *   without both, init() returns before any network request, so no MusicKit
+ *   CDN script and no token fetch happen in credential-less builds.
  * - User authorization (Apple ID) for personal library / recommendations.
  * - An active Apple Music subscription is required to stream catalogue audio.
  *
  * Status: catalog search + entity mapping are implemented defensively and
- * activate only when a developer token is present. Streaming playback through
- * MusicKit's own engine is intentionally not claimed: it has not been tested
- * without credentials. Demo mode remains fully functional without any of this.
+ * activate only when the gate passes. Streaming playback through MusicKit's
+ * own engine is intentionally not claimed: it has not been tested with real
+ * credentials. Demo mode remains fully functional without any of this.
+ * init() failure can never throw into callers — it resolves to null and the
+ * catalogue facade falls back to the demo provider.
  */
 
 import type {
@@ -23,6 +29,16 @@ import type {
   SearchResults,
   Song,
 } from '@/domain/types'
+import {
+  createTokenSource,
+  describeMusicKitConfig,
+  isMusicKitConfigured,
+  readMusicKitConfig,
+  type MusicKitConfig,
+  type TokenSource,
+} from '@/data/musickit-token'
+
+export { isMusicKitConfigured }
 
 const MUSICKIT_SRC = 'https://js-cdn.music.apple.com/musickit/v3/musickit.js'
 
@@ -51,13 +67,26 @@ interface MusicKitCatalogItem {
 
 type AnyRecord = Record<string, unknown>
 
-function envToken(): string {
-  const token = import.meta.env.VITE_MUSICKIT_DEVELOPER_TOKEN as string | undefined
-  return (token ?? '').trim()
-}
+/** Single-flight CDN loader: no script tag until a token is in hand. */
+let scriptPromise: Promise<void> | null = null
 
-export function isMusicKitConfigured(): boolean {
-  return envToken().length > 0
+function ensureMusicKitScript(): Promise<void> {
+  const win = window as unknown as { MusicKit?: unknown }
+  if (win.MusicKit) return Promise.resolve()
+  if (scriptPromise) return scriptPromise
+  scriptPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${MUSICKIT_SRC}"]`) as HTMLScriptElement | null
+    const el = existing ?? document.createElement('script')
+    el.src = MUSICKIT_SRC
+    el.async = true
+    el.onload = () => resolve()
+    el.onerror = () => {
+      scriptPromise = null
+      reject(new Error('Failed to load MusicKit JS'))
+    }
+    if (!existing) document.head.appendChild(el)
+  })
+  return scriptPromise
 }
 
 function artworkUrl(artwork?: MusicKitArtwork, size = 400): string | undefined {
@@ -114,43 +143,65 @@ function toArtist(item: MusicKitCatalogItem): Artist | null {
 }
 
 export class MusicKitProvider implements CatalogProvider {
-  readonly info: CatalogProviderInfo = {
-    id: 'musickit',
-    name: 'Apple Music (MusicKit)',
-    description: isMusicKitConfigured()
-      ? 'Developer token detected. Catalog discovery is enabled; streaming requires user authorization and a subscription.'
-      : 'Not configured. Set VITE_MUSICKIT_DEVELOPER_TOKEN (signed server-side with your .p8 key) to enable.',
-    configured: isMusicKitConfigured(),
+  readonly info: CatalogProviderInfo
+  private readonly tokens: TokenSource
+  private readonly config: MusicKitConfig
+
+  constructor(
+    tokens?: TokenSource,
+    config: MusicKitConfig = readMusicKitConfig(),
+  ) {
+    this.config = config
+    this.tokens = tokens ?? createTokenSource({ config })
+    this.info = {
+      id: 'musickit',
+      name: 'Apple Music (MusicKit)',
+      description: describeMusicKitConfig(config),
+      configured: isMusicKitConfigured(config),
+    }
   }
 
   private music: AnyRecord | null = null
 
+  private async configureSdk(developerToken: string): Promise<AnyRecord | null> {
+    await ensureMusicKitScript()
+    const MK = (window as unknown as { MusicKit?: AnyRecord }).MusicKit
+    if (!MK) return null
+    const configure = MK['configure'] as ((opts: unknown) => Promise<unknown>) | undefined
+    if (!configure) return null
+    let instance: unknown
+    try {
+      instance = await configure({
+        developerToken,
+        app: { name: 'Sonora', build: '0.1.0' },
+      })
+    } catch (err) {
+      // A cached token may have been rejected/expired server-side: force one
+      // refresh from the token service and retry. Static tokens cannot refresh.
+      if (!this.tokens.isDynamic) throw err
+      this.tokens.invalidate()
+      instance = await configure({
+        developerToken: await this.tokens.getToken(),
+        app: { name: 'Sonora', build: '0.1.0' },
+      })
+    }
+    const getInstance = MK['getInstance'] as (() => unknown) | undefined
+    return ((instance as AnyRecord | null | undefined) ?? (getInstance?.() as AnyRecord | null)) ?? null
+  }
+
   async init(): Promise<AnyRecord | null> {
     if (this.music) return this.music
-    const token = envToken()
-    if (!token) return null
+    // Two-key gate first: credential-less builds must not fetch a token or
+    // load the MusicKit CDN script at all.
+    if (!isMusicKitConfigured(this.config)) return null
     try {
-      if (!document.querySelector(`script[src="${MUSICKIT_SRC}"]`)) {
-        await new Promise<void>((resolve, reject) => {
-          const el = document.createElement('script')
-          el.src = MUSICKIT_SRC
-          el.async = true
-          el.onload = () => resolve()
-          el.onerror = () => reject(new Error('Failed to load MusicKit JS'))
-          document.head.appendChild(el)
-        })
-      }
-      const MK = (window as unknown as { MusicKit?: AnyRecord }).MusicKit
-      if (!MK) return null
-      const configure = MK['configure'] as ((opts: unknown) => Promise<unknown>) | undefined
-      const instance = configure ? await configure({
-        developerToken: token,
-        app: { name: 'Sonora', build: '0.1.0' },
-      }) : undefined
-      const getInstance = MK['getInstance'] as (() => unknown) | undefined
-      this.music = (instance as AnyRecord | null | undefined) ?? ((getInstance?.() as AnyRecord | null) ?? null)
+      // Token BEFORE script load: a failing token service never triggers a
+      // CDN request, keeping the demo path network-identical to today.
+      const token = await this.tokens.getToken()
+      this.music = await this.configureSdk(token)
       return this.music
     } catch {
+      // Never throw into the catalogue facade / UI — fall back to demo.
       this.music = null
       return null
     }
