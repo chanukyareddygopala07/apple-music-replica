@@ -6,7 +6,7 @@ import type { SearchResults } from '@/domain/types'
 import { withBase } from '@/app/router'
 import { attachArtworkFallback, debounce, escapeHtml, on, qs, artImg } from '@/ui/el'
 import { icon } from '@/ui/icons'
-import { albumCardHtml, emptyStateHtml, mediaCardHtml, playlistCardHtml, skeletonRowsHtml, songRowHtml } from '@/ui/media'
+import { albumCardHtml, emptyStateHtml, mediaCardHtml, playlistCardHtml, skeletonRowsHtml, songRowHtml, songArtSeed } from '@/ui/media'
 import { GENRES } from '@/data/demo-catalog'
 import { gradientCss } from '@/utils/artwork'
 
@@ -81,7 +81,7 @@ export async function renderSearch(root: HTMLElement, initialQuery: string): Pro
         const s = top.song
         return `
         <div class="top-result">
-          ${artImg(`album-${s.albumId}`, s.title)}
+          ${artImg(songArtSeed(s), s.title)}
           <div>
             <div class="tr-kicker">Song</div>
             <div class="tr-title">${escapeHtml(s.title)}</div>

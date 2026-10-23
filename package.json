@@ -14,7 +14,8 @@
     "test:e2e": "playwright test",
     "capture:reference": "node scripts/capture-reference.mjs",
     "capture:clone": "node scripts/capture-clone.mjs",
-    "smoke:musickit": "node scripts/musickit-smoke.mjs"
+    "smoke:musickit": "node scripts/musickit-smoke.mjs",
+    "smoke:audius": "node scripts/audius-smoke.mjs"
   },
   "dependencies": {},
   "devDependencies": {

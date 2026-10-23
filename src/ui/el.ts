@@ -1,6 +1,6 @@
 /** Tiny DOM helpers: html templating, escaping, event delegation, images. */
 
-import { artworkDataUrl } from '@/utils/artwork'
+import { artSrc, artworkDataUrl } from '@/utils/artwork'
 
 export function escapeHtml(str: string): string {
   return str
@@ -42,7 +42,7 @@ export function on<K extends keyof HTMLElementEventMap>(
 
 /** <img> markup with graceful fallback to generated artwork. */
 export function artImg(seed: string, alt: string, cls = '', opts?: { round?: boolean; sizes?: string }): string {
-  const src = artworkDataUrl(seed, opts)
+  const src = artSrc(seed, opts)
   return `<img class="${cls}" src="${src}" alt="${escapeHtml(alt)}" draggable="false" ${opts?.sizes ? `sizes="${opts.sizes}"` : ''} data-seed="${escapeHtml(seed)}" />`
 }
 
@@ -51,7 +51,7 @@ export function attachArtworkFallback(root: ParentNode): void {
   qsa<HTMLImageElement>('img[data-seed]', root).forEach((img) => {
     const seed = img.dataset.seed ?? ''
     if (!img.getAttribute('src') && seed) {
-      img.src = artworkDataUrl(seed)
+      img.src = artSrc(seed)
     }
     if (img.dataset.fallbackBound === '1') return
     img.dataset.fallbackBound = '1'

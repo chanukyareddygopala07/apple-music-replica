@@ -1,0 +1,28 @@
+{
+  "ranAt": "2026-10-23T20:42:46.442Z",
+  "mode": "local",
+  "query": "love",
+  "search": {
+    "auRows": 5,
+    "firstTitle": "Must B Love",
+    "firstArtist": "VANTAGE//",
+    "artistResolved": true
+  },
+  "playback": {
+    "playerVisible": true,
+    "playing": true,
+    "elapsed": [
+      "0:00",
+      "0:01"
+    ],
+    "timeAdvanced": true
+  },
+  "network": {
+    "audiusApiRequests": 4,
+    "streamRequests": 1,
+    "mediaResponses": 1,
+    "appleApiRequests": 0
+  },
+  "pageErrors": [],
+  "pass": true
+}

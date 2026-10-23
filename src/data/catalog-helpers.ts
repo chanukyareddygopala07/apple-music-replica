@@ -2,6 +2,7 @@
 
 import { catalog } from '@/data/catalog'
 import { ALBUMS, ARTISTS, PLAYLISTS, SONGS } from '@/data/demo-catalog'
+import { remoteAlbum, remoteArtist, remotePlaylist, remoteSong } from '@/data/remote-registry'
 import type { Album, Artist, Playlist, Song } from '@/domain/types'
 
 export function getCatalog(): typeof catalog {
@@ -14,23 +15,24 @@ const songMap = new Map(SONGS.map((s) => [s.id, s]))
 const playlistMap = new Map(PLAYLISTS.map((p) => [p.id, p]))
 
 export function artistById(id: string): Artist | undefined {
-  return artistMap.get(id)
+  return artistMap.get(id) ?? remoteArtist(id)
 }
 
 export function albumById(id: string): Album | undefined {
-  return albumMap.get(id)
+  return albumMap.get(id) ?? remoteAlbum(id)
 }
 
 export function songById(id: string): Song | undefined {
-  return songMap.get(id)
+  return songMap.get(id) ?? remoteSong(id)
 }
 
 export function editorialPlaylistById(id: string): Playlist | undefined {
-  return playlistMap.get(id)
+  return playlistMap.get(id) ?? remotePlaylist(id)
 }
 
 export function artistName(id: string | undefined): string {
-  return (id && artistMap.get(id)?.name) || 'Unknown Artist'
+  if (!id) return 'Unknown Artist'
+  return artistMap.get(id)?.name ?? remoteArtist(id)?.name ?? 'Unknown Artist'
 }
 
 export function artistNamesFor(song: Song): string {

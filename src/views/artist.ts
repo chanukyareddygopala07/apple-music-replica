@@ -2,10 +2,10 @@
 
 import type { Album, Artist, Song } from '@/domain/types'
 import { getCatalog } from '@/data/catalog-helpers'
-import { attachArtworkFallback } from '@/ui/el'
+import { attachArtworkFallback, escapeHtml } from '@/ui/el'
 import { icon } from '@/ui/icons'
 import { albumCardHtml, carouselWrapHtml, emptyStateHtml, sectionHeaderHtml, songRowHtml, applyHeroTheme } from '@/ui/media'
-import { artworkDataUrl } from '@/utils/artwork'
+import { artSrc } from '@/utils/artwork'
 import { wireCarousels } from '@/views/home'
 
 export async function renderArtist(root: HTMLElement, id: string): Promise<void> {
@@ -25,7 +25,7 @@ export async function renderArtist(root: HTMLElement, id: string): Promise<void>
 
   root.innerHTML = `
     <header class="artist-hero">
-      <img class="artist-bg" src="${artworkDataUrl(artist.artworkSeed)}" alt="" aria-hidden="true" />
+      <img class="artist-bg" src="${artSrc(artist.artworkSeed)}" data-seed="${escapeHtml(artist.artworkSeed)}" alt="" aria-hidden="true" />
       <div class="artist-shade" aria-hidden="true"></div>
       <h1>${artist.name.replaceAll('<', '&lt;')}</h1>
       <div class="artist-actions">
@@ -40,7 +40,7 @@ export async function renderArtist(root: HTMLElement, id: string): Promise<void>
           <section aria-label="Latest release">
             <div class="section-header" style="padding-left:0"><h2 class="section-title">Latest Release</h2></div>
             <div class="latest-release">
-              <a href="/album/${latest.id}" data-nav><img src="${artworkDataUrl(latest.artworkSeed)}" alt="Cover of ${latest.title.replaceAll('"', '')}" /></a>
+              <a href="/album/${latest.id}" data-nav><img src="${artSrc(latest.artworkSeed)}" data-seed="${escapeHtml(latest.artworkSeed)}" alt="Cover of ${latest.title.replaceAll('"', '')}" /></a>
               <div class="lr-meta">
                 <div>${latest.releaseDate.slice(0, 11)}</div>
                 <a class="lr-title" href="/album/${latest.id}" data-nav style="display:block">${latest.title.replaceAll('<', '&lt;')}</a>

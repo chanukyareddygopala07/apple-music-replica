@@ -6,7 +6,7 @@ import { attachArtworkFallback, on, qs } from '@/ui/el'
 import { icon } from '@/ui/icons'
 import { createSlider } from '@/ui/slider'
 import { formatTime } from '@/utils/format'
-import { artworkDataUrl } from '@/utils/artwork'
+import { artSrc, artworkDataUrl } from '@/utils/artwork'
 import { renderLyrics } from '@/ui/lyrics'
 import { renderQueue } from '@/ui/queue-view'
 import { applyHeroTheme } from '@/ui/media'
@@ -104,7 +104,11 @@ export function createNowPlaying(player: PlayerEngine, onClose: () => void): Now
     if (song) {
       const album = albumById(song.albumId)
       if (art && album) {
-        art.src = artworkDataUrl(album.artworkSeed)
+        art.src = artSrc(album.artworkSeed)
+        art.onerror = () => {
+          art.src = artworkDataUrl(album.artworkSeed)
+          art.onerror = null
+        }
         art.alt = `Cover of ${album.title}`
       }
       if (title) {

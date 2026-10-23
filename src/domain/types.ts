@@ -51,6 +51,9 @@ export interface Song {
   explicit?: boolean
   /** Original demo lyrics when present. */
   lyrics?: LyricLine[]
+  /** Remote artwork URL when the provider supplies one (Audius); otherwise
+   * UI falls back to generated art from `album-{albumId}`. */
+  artworkUrl?: string
 }
 
 export interface Playlist {
@@ -127,7 +130,7 @@ export interface BrowseData {
 
 /** Provider capability flags surfaced in Settings. */
 export interface CatalogProviderInfo {
-  id: 'demo' | 'musickit'
+  id: 'demo' | 'musickit' | 'audius'
   name: string
   description: string
   configured: boolean

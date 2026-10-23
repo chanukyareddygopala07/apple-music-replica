@@ -407,3 +407,9 @@ and criterion 1 above as each step completes.
   from Actions variables (empty ⇒ identical demo build); M1 external setup
   checklist recorded above. M1 criterion 1 remains **NOT MET** — enrollment
   (P1) not started.
+- 2026-10-24 — **Audius added as the primary free external provider**
+  (separate from this plan; no Apple dependency introduced): default-on
+  REST integration (`src/data/audius-*.ts`, demo fallback, e2e builds pin
+  `VITE_AUDIUS_ENABLED=0` for determinism). MusicKit remains the optional
+  future integration this milestone plan covers — M1 status and all
+  acceptance criteria above are unchanged by it.

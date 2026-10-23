@@ -5,7 +5,7 @@ import type { Song, QueueItem } from '@/domain/types'
 import { songById, artistNamesFor } from '@/data/catalog-helpers'
 import { attachArtworkFallback, on, qs, artImg } from '@/ui/el'
 import { icon } from '@/ui/icons'
-import { emptyStateHtml } from '@/ui/media'
+import { emptyStateHtml, songArtSeed } from '@/ui/media'
 
 export function renderQueue(container: HTMLElement, player: PlayerEngine): () => void {
   const draw = (snap: PlayerSnapshot) => {
@@ -27,7 +27,7 @@ export function renderQueue(container: HTMLElement, player: PlayerEngine): () =>
         return `
         <li class="queue-row${current ? ' is-current' : ''}" data-queue-item-id="${item.queueItemId}" data-index="${i}" draggable="${!current}">
           <button type="button" class="icon-btn drag-handle" aria-label="Reorder ${escapeAttr(song.title)}. Use move buttons in the menu." tabindex="-1">${icon('drag')}</button>
-          ${artImg(`album-${song.albumId}`, song.title)}
+          ${artImg(songArtSeed(song), song.title)}
           <div class="row-main">
             <div class="q-title truncate">${escapeHtml(song.title)}</div>
             <div class="q-sub truncate">${escapeHtml(artistNamesFor(song))}</div>

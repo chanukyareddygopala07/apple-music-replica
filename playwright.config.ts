@@ -14,5 +14,12 @@ export default defineConfig({
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: true,
     timeout: 120_000,
+    env: {
+      // Deterministic, credential-less e2e: Audius (default-on provider) is
+      // disabled for the test build so the suite never depends on the live
+      // API. Provider behaviour itself is covered by unit tests.
+      ...(process.env as unknown as Record<string, string>),
+      VITE_AUDIUS_ENABLED: '0',
+    },
   },
 })

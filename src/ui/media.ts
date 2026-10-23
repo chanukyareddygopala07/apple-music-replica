@@ -9,7 +9,7 @@ import { heroColors } from '@/utils/artwork'
 
 export function songRowHtml(song: Song, opts?: { index?: number; showArt?: boolean; context?: string; queueItemId?: string; draggable?: boolean }): string {
   const sub = artistNamesFor(song)
-  const art = opts?.showArt === false ? '' : artImg(albumSeedFor(song), song.title, 'row-art')
+  const art = opts?.showArt === false ? '' : artImg(songArtSeed(song), song.title, 'row-art')
   const numCell =
     opts?.index !== undefined
       ? `<span class="row-num has-hint">${opts.index + 1}</span><span class="row-play-hint" aria-hidden="true">${icon('play')}</span>`
@@ -31,8 +31,9 @@ export function songRowHtml(song: Song, opts?: { index?: number; showArt?: boole
     </div>`
 }
 
-export function albumSeedFor(song: Song): string {
-  return `album-${song.albumId}`
+/** Artwork seed for a song row/queue art: remote artwork URL when present. */
+export function songArtSeed(song: Song): string {
+  return song.artworkUrl ?? `album-${song.albumId}`
 }
 
 export function mediaCardHtml(

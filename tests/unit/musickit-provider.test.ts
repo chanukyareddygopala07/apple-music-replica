@@ -109,6 +109,9 @@ describe('credential-less configuration', () => {
   })
 
   it('the catalogue facade stays on the demo provider (no MusicKit network activity)', async () => {
+    // Audius is the default-on external provider; this suite asserts the
+    // MusicKit gate makes no requests, so disable Audius for the check too.
+    vi.stubEnv('VITE_AUDIUS_ENABLED', '0')
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
     vi.resetModules()

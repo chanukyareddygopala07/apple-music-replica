@@ -144,6 +144,15 @@ ${shapes}
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
+/**
+ * Image source for a seed: remote providers (Audius) supply real http(s)
+ * artwork URLs as the seed, which are used directly; demo/generic seeds get
+ * deterministic generated SVG art.
+ */
+export function artSrc(seed: string, opts?: { round?: boolean }): string {
+  return /^https?:\/\//i.test(seed) ? seed : artworkDataUrl(seed, opts)
+}
+
 /** Two-stop gradient (for editorial cards / category washes). */
 export function gradientCss(seed: string): string {
   const h = hashSeed(seed || 'sonora')

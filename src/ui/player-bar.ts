@@ -7,7 +7,7 @@ import { createSlider } from '@/ui/slider'
 import { formatTime } from '@/utils/format'
 import { songById, artistNamesFor, albumById } from '@/data/catalog-helpers'
 import { isFavoriteSong, toggleFavoriteSong } from '@/state/library-store'
-import { artworkDataUrl } from '@/utils/artwork'
+import { artSrc, artworkDataUrl } from '@/utils/artwork'
 import { showToast } from '@/ui/toast'
 
 export interface PlayerBarHandle {
@@ -128,7 +128,11 @@ export function createPlayerBar(player: PlayerEngine): PlayerBarHandle {
       lastSongId = song.id
       const album = albumById(song.albumId)
       if (artImgEl && album) {
-        artImgEl.src = artworkDataUrl(album.artworkSeed)
+        artImgEl.src = artSrc(album.artworkSeed)
+        artImgEl.onerror = () => {
+          artImgEl.src = artworkDataUrl(album.artworkSeed)
+          artImgEl.onerror = null
+        }
         artImgEl.alt = `Cover of ${album.title}`
       }
       if (titleEl) {
