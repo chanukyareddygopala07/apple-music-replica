@@ -2,8 +2,10 @@
 
 Status: **approved plan — M1 implemented** (secure token plumbing +
 conditional initialization; credential-less gates extended to 89 unit / 11
-e2e). Live MusicKit initialization is **not yet verified** (blocked on
-external prerequisites, see §5 M1). M2–M5 not implemented. The demo player
+e2e). Live MusicKit initialization is **not yet verified** — the full
+prep-side pipeline exists (token-signer scaffold, `npm run smoke:musickit`
+harness, Pages env passthrough) but stays blocked until Apple enrollment
+completes (see §5 M1 checklist). M2–M5 not implemented. The demo player
 remains the default and only playback path.
 
 Companion docs: `replica/recon.md`, `replica/build-log.md`, `../../README.md`.
@@ -50,8 +52,8 @@ Companion docs: `replica/recon.md`, `replica/build-log.md`, `../../README.md`.
 | P1 | Apple Developer Program membership | Apple account | Required for media identifiers/keys (Account Holder/Admin role for key creation). |
 | P2 | Media identifier (reverse-domain style name, services enabled) | Apple Developer portal | Per Apple's "Create a media identifier and private key" help doc. |
 | P3 | MusicKit private key (`.p8`) + key id (`kid`) | **Token-signing server only** | Up to 2 keys per media identifier; revocable if compromised. |
-| P4 | Token-signing service (separate, private) | Own repo/server | Signs ES256 JWTs with Team ID (`iss`), `kid`, `iat`, `exp`; returns short-lived tokens over HTTPS. Never ships the key to clients. |
-| P5 | Token-server endpoint URL for this app | `.env` (git-ignored) | e.g. `VITE_MUSICKIT_TOKEN_URL`. A URL is not a secret; the token it returns is short-lived. |
+| P4 | Token-signing service (separate, private) | Own repo/server | **Scaffolded 2026-10-24:** `../apple-music-token-signer` — Cloudflare Worker, zero-dependency tests (12/12), key only ever a Wrangler secret; **not yet deployed** (needs P1–P3 first). Signs ES256 JWTs with Team ID (`iss`), `kid`, `iat`, `exp`, optional `origin` claim; returns short-lived tokens over HTTPS. Never ships the key to clients. |
+| P5 | Token-server endpoint URL for this app | GitHub Actions **variable** `VITE_MUSICKIT_TOKEN_URL` (+ git-ignored `.env` for local) | e.g. `https://<worker>.workers.dev/token`. A URL is not a secret; the token it returns is short-lived. Empty = feature off. |
 
 ---
 
@@ -146,7 +148,10 @@ and a green quality-gate run. Nothing merges if credential-less gates regress.
 ### M1 — Token plumbing (no UI change)
 
 **Status: implemented in this repo (commit `feat: add secure MusicKit token
-plumbing`) — live acceptance criterion blocked on external prerequisites.**
+plumbing`); live acceptance criterion still blocked — Apple enrollment not
+started (P1), so P2–P4 cannot complete. Prep-side pipeline delivered
+2026-10-24: signer scaffold + smoke harness + Pages env passthrough
+(see checklist below).**
 
 - **Work:** build/stand up the token-signing service (P4) holding the `.p8`;
   this repo gains runtime token acquisition (`VITE_MUSICKIT_TOKEN_URL` or
@@ -178,13 +183,17 @@ plumbing`) — live acceptance criterion blocked on external prerequisites.**
 - **Acceptance criteria — actual results:**
   1. **NOT MET — blocked.** Live `musickit.configure()` + catalog search with
      a real token could not be run: no Apple Developer Program credentials,
-     media identifier, `.p8`, or token-signing service exist in this
+     media identifier, `.p8`, or deployed token-signing service exist in this
      environment (external prerequisites P1–P4; only the public browser-side
      URL config `VITE_MUSICKIT_TOKEN_URL`/`VITE_MUSICKIT_ENABLED` belongs in
      this repo, per hard rule 1–2). **No live MusicKit initialization is
      claimed anywhere in this repo's docs.** The §8.1 domain/origin empirical
-     question therefore also remains open — settled only when a real signer
-     can issue a token for testing.
+     question therefore also remains open. *Harness to verify it now exists:*
+     `npm run smoke:musickit` (builds with the gate on, runs the browser
+     search, asserts real `mk-song-*` rows and/or `MusicKit` catalog search,
+     writes `replica/musickit-smoke-report.json`; exit 2 while the token URL
+     is unset). Flip this criterion to MET only on a green smoke run — paste
+     the report numbers here.
   2. **MET.** With no env vars: demo behavior unchanged; no MusicKit CDN
      script, no `window.MusicKit`, no token fetch (unit: credential-less
      provider/facade tests asserting zero `fetch` and zero script injection;
@@ -194,13 +203,49 @@ plumbing`) — live acceptance criterion blocked on external prerequisites.**
   3. **MET.** Staged-diff secret scan clean (no tokens/keys/bodies); quality
      gates green: lint, typecheck, **89/89 unit (+42)**, **11/11 e2e (+1)**,
      production build.
-- **Remaining blockers:** (a) external prerequisites P1–P4 — Apple Developer
-  Program membership, media identifier + `.p8`/`kid`, and a deployed
-  token-signing service (the precise missing pieces for criterion 1);
-  (b) one live session against that service to settle §8.1 (domain/origin on
-  `*.github.io`) and §8.3 (real token lifetimes vs. the refresh margin);
-  (c) secret-scan CI step still optional/not added (manual staged-diff scan
-  performed instead).
+- **Remaining blockers:** (a) **P1 not started** — Apple Developer Program
+  enrollment is the single external blocker for everything else; (b) once
+  enrolled: P2/P3 (Media ID + `.p8`/`kid`), then deploy the scaffolded signer
+  (P4) and set the two Actions variables (P5); (c) one live smoke run to
+  settle §8.1 (domain/origin on `*.github.io`) and §8.3 (real token lifetimes
+  vs. the refresh margin); (d) secret-scan CI step still optional/not added
+  (manual staged-diff scan performed instead).
+
+#### M1 external setup checklist (owner: operator — not automatable)
+
+Status 2026-10-24: **not started** (all boxes unchecked). Update this list
+and criterion 1 above as each step completes.
+
+- [ ] **1. Enroll** at <https://developer.apple.com/programs/enroll/> — paid,
+      identity verification, Account Holder only. (Currently not enrolled.)
+- [ ] **2. Media ID:** portal → Certificates, Identifiers & Profiles →
+      Identifiers → + → **Media IDs** — description + reverse-domain id
+      (e.g. `com.chanukya.sonora`), enable **MusicKit**, register.
+- [ ] **3. `.p8` key:** Keys → + → type **MusicKit** → associate with the
+      Media ID → register → **Download** (available only once — keep an
+      offline copy). Note the **Key ID** (`kid`); grab the **Team ID** from
+      the Membership page.
+- [ ] **4. Deploy the signer** (scaffold at `../apple-music-token-signer`,
+      instructions in its README): `npm install`, `npx wrangler login`,
+      four `wrangler secret put` calls (`MUSICKIT_PRIVATE_KEY`, `KID`,
+      `TEAM_ID`, `ALLOWED_ORIGINS`), `npm run deploy`, then curl `/token`
+      to confirm a valid JWT.
+      `ALLOWED_ORIGINS` must list exact browser origins with **no path**:
+      `https://<user>.github.io,http://127.0.0.1:4174`
+- [ ] **5. Point the site at it:**
+      `gh variable set VITE_MUSICKIT_ENABLED --body 1` and
+      `gh variable set VITE_MUSICKIT_TOKEN_URL --body https://<worker>.workers.dev/token`
+      (empty variables = demo unchanged; the Pages workflow passes them
+      through at build time).
+- [ ] **6. Run the live smoke:** `npm run smoke:musickit` (local) and/or
+      `npm run smoke:musickit -- --site=https://<user>.github.io/apple-music-replica`
+      (deployed). On green: paste `replica/musickit-smoke-report.json`
+      numbers below and mark criterion 1 **MET**.
+
+> Live-result record (fill in on the first green run): report `ranAt` =
+> _pending_; `mkRows` = _pending_; `apiSearchOk` = _pending_;
+> `configureOk` = _pending_; §8.1 origin finding = _pending_;
+> §8.3 observed TTL = _pending_.
 
 ### M2 — User authorization
 
@@ -352,3 +397,13 @@ plumbing`) — live acceptance criterion blocked on external prerequisites.**
   (credential-less invariants included). Live `MusicKit.configure()` remains
   unverified — blocked on external P1–P4 prerequisites; §8.1 and §8.3 still
   open pending a real token-signing service.
+- 2026-10-24 — **M1 prep-side pipeline**: token-signer scaffolded in
+  `../apple-music-token-signer` (Cloudflare Worker; ES256 claims, TTL
+  clamping, CORS/`origin` allowlist, generic error bodies; 12/12 zero-dep
+  `node:test` tests — undeployed, no key exists yet); live smoke harness
+  added (`npm run smoke:musickit`, local + deployed modes, writes
+  `replica/musickit-smoke-report.json`, exit 2 while unconfigured); Pages
+  workflow passes `VITE_MUSICKIT_ENABLED`/`VITE_MUSICKIT_TOKEN_URL` through
+  from Actions variables (empty ⇒ identical demo build); M1 external setup
+  checklist recorded above. M1 criterion 1 remains **NOT MET** — enrollment
+  (P1) not started.

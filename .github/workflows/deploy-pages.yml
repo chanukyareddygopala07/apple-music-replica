@@ -30,6 +30,10 @@ jobs:
       - run: npm run build
         env:
           VITE_BASE: /apple-music-replica/
+          # Public MusicKit config (repo Actions *variables*, not secrets).
+          # Empty until `gh variable set ...` — empty gate = demo unchanged.
+          VITE_MUSICKIT_ENABLED: ${{ vars.VITE_MUSICKIT_ENABLED }}
+          VITE_MUSICKIT_TOKEN_URL: ${{ vars.VITE_MUSICKIT_TOKEN_URL }}
       - run: cp dist/index.html dist/404.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
