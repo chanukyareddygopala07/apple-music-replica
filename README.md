@@ -7,6 +7,8 @@ with Vite only because browsers cannot run `.ts` directly.
 **Not affiliated with Apple.** Original brand, palette, copy, icons and a fictional
 demo catalogue — no Apple assets, trade dress, or catalogue data.
 
+**Live demo:** https://chanukyareddygopala07.github.io/apple-music-replica/
+
 ## Run it
 
 ```bash
