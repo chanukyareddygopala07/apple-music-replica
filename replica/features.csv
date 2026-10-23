@@ -1,0 +1,46 @@
+feature,area,priority,original,clone,notes
+Persistent sidebar nav (Home Browse Radio Search Library),navigation,must,yes,yes,
+Home with editorial cards + song grids + album carousels,home,must,yes,yes,
+Browse categories + charts,browse,must,yes,yes,
+Radio stations view,radio,must,yes,yes,
+Search with autocomplete + grouped results,search,must,yes,yes,debounced input; demo catalogue search
+Album page with themed hero + track list,album,must,yes,yes,hero colours derived from generated artwork
+Artist page with hero + top songs + albums,artist,must,yes,yes,
+Playlist page with track list,playlist,must,yes,yes,user playlists add rename delete reorder
+Song detail page,song,must,yes,yes,
+Persistent bottom player bar,player,must,yes,yes,
+Play / pause with real audio,player,must,yes,yes,SoundHelix demo MP3s
+Next / previous track,player,must,yes,yes,
+Seekable progress with times,player,must,yes,yes,
+Volume + mute,player,must,yes,yes,
+Shuffle,player,must,yes,yes,restores base order when turned off
+Repeat off / all / one,player,must,yes,yes,
+Queue view + reorder + remove + clear,queue,must,yes,yes,drag-and-drop + move buttons
+Favorites toggle + library songs tab,favorites,must,yes,yes,songs + albums
+Recently played history,library,must,yes,yes,
+Create / rename / delete playlists + add remove tracks,playlists,must,yes,yes,
+Persist library + prefs across reloads,persistence,must,yes,yes,localStorage + pagehide flush
+Now Playing view with lyrics when available,now-playing,must,yes,yes,embedded demo lyrics for 5 tracks
+Responsive mobile shell (drawer + tabs + compact player),mobile,must,yes,yes,
+Keyboard shortcuts + accessible controls,a11y,must,yes,yes,Space arrows M N P S R Q slash Escape
+Skeleton loading states,loading,should,yes,yes,
+Empty / error / unavailable states,states,should,yes,yes,
+Playback survives route navigation,player,should,yes,yes,single HTMLAudioElement in engine singleton
+Autoplay-block graceful handling,player,should,yes,yes,NotAllowedError -> paused + blocked flag
+Theme follows system + manual toggle,ui,should,yes,yes,system / light / dark
+Explicit badge on marked tracks,ui,should,yes,yes,
+Genre pages from browse,browse,should,yes,yes,
+Horizontal carousel arrows + scroll,fidelity,should,yes,yes,
+Multi-select add-to-queue from rows,queue,could,yes,skip,per-row Play Next / Add to Queue covers core need
+Drag-and-drop queue reorder,queue,could,yes,yes,
+Stations built from catalogue (demo radio),radio,could,yes,yes,demo stations from fictional catalogue
+MusicKit provider (requires developer token + subscription),integration,could,yes,yes,search-only; untested without credentials; no streaming claim
+Synced lyrics timing precision,lyrics,could,yes,yes,LRCLIB-style synced timing; demo lyrics are approximations
+Social sharing,sharing,could,yes,skip,not observable in core player loop
+Sign in with Apple ID,account,could,yes,skip,requires Apple ID; library is local instead
+Subscription billing + paywall,payments,could,yes,skip,not reproducible without Apple commercial agreement
+Full Apple Music catalogue streaming,catalog,could,yes,skip,requires licensed MusicKit integration
+AirPlay / Handoff / devices,ecosystem,could,yes,skip,Apple ecosystem only
+Live Apple radio broadcasts,radio,could,yes,skip,licensed broadcast replaced by demo stations
+Music videos,catalog,could,yes,skip,licensed content
+User accounts / sync across devices,account,could,yes,skip,local-only library by design

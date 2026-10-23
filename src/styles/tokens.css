@@ -1,0 +1,121 @@
+/* Sonora design tokens — generated from replica/design/tokens.json.
+   Components consume these variables only; no raw hex in component CSS. */
+
+:root {
+  color-scheme: light;
+
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface2: #f5f5f7;
+  --color-surface-translucent: rgba(245, 245, 247, 0.72);
+  --color-border: #d8d8dc;
+  --color-border-strong: #b8b8bd;
+  --color-border-input: #86868b;
+  --color-text: #1d1d1f;
+  --color-text-secondary: #6e6e73;
+  --color-text-tertiary: #8e8e93;
+  --color-accent: #6a45f2;
+  --color-accent-strong: #5a37e0;
+  --color-on-accent: #ffffff;
+  --color-accent-soft: #eeeaff;
+  --color-danger: #d32f33;
+  --color-success: #1f7a4d;
+  --color-warning: #8a6d1d;
+
+  --color-nav-selected: rgba(0, 0, 0, 0.06);
+  --color-hover: rgba(0, 0, 0, 0.04);
+  --color-active: rgba(0, 0, 0, 0.08);
+  --color-hairline: rgba(0, 0, 0, 0.08);
+  --color-scrim: rgba(0, 0, 0, 0.4);
+  --color-player-bg: rgba(255, 255, 255, 0.86);
+  --color-glass: rgba(255, 255, 255, 0.72);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 14px rgba(0, 0, 0, 0.06);
+  --shadow-art: 0 4px 14px rgba(0, 0, 0, 0.2);
+  --shadow-floating: 0 8px 32px rgba(0, 0, 0, 0.18);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  --text-caption2: 11px;
+  --text-caption: 12px;
+  --text-footnote: 13px;
+  --text-subhead: 14px;
+  --text-callout: 16px;
+  --text-headline: 17px;
+  --text-title3: 20px;
+  --text-title2: 24px;
+  --text-title1: 28px;
+  --text-large-title: 34px;
+  --text-hero: 48px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  --sidebar-width: 260px;
+  --player-height: 72px;
+  --mobile-topbar-height: 52px;
+  --mobile-tabs-height: 52px;
+  --mobile-player-height: 64px;
+  --content-gutter: 40px;
+
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Per-page hero theme (overridden inline on album/artist/playlist pages) */
+  --hero-from: #5b5d63;
+  --hero-to: #2c2d31;
+  --hero-text: rgba(255, 255, 255, 0.95);
+  --hero-text-secondary: rgba(255, 255, 255, 0.64);
+  --hero-hairline: rgba(255, 255, 255, 0.14);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #000000;
+  --color-surface: #161618;
+  --color-surface2: #1c1c1e;
+  --color-surface-translucent: rgba(38, 38, 40, 0.62);
+  --color-border: #3a3a3c;
+  --color-border-strong: #48484a;
+  --color-border-input: #636366;
+  --color-text: #ebebf0;
+  --color-text-secondary: #98989d;
+  --color-text-tertiary: #6e6e73;
+  --color-accent: #9d86ff;
+  --color-accent-strong: #b09bff;
+  --color-on-accent: #ffffff;
+  --color-accent-soft: #2a2350;
+  --color-danger: #ff6369;
+  --color-success: #3dd68c;
+  --color-warning: #f5c451;
+
+  --color-nav-selected: rgba(255, 255, 255, 0.1);
+  --color-hover: rgba(255, 255, 255, 0.06);
+  --color-active: rgba(255, 255, 255, 0.1);
+  --color-hairline: rgba(255, 255, 255, 0.12);
+  --color-scrim: rgba(0, 0, 0, 0.55);
+  --color-player-bg: rgba(22, 22, 24, 0.88);
+  --color-glass: rgba(28, 28, 30, 0.72);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-art: 0 4px 18px rgba(0, 0, 0, 0.55);
+  --shadow-floating: 0 8px 32px rgba(0, 0, 0, 0.5);
+}

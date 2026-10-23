@@ -1,0 +1,50 @@
+{
+  "home": {
+    "title": "‎Apple Music - Web Player",
+    "bodyBg": "rgb(255, 255, 255)",
+    "bodyColor": "rgba(0, 0, 0, 0.88)",
+    "bodyFont": "-apple-system, \"system-ui\", \"Apple Color Emoji\", \"SF Pro\", \"SF Pro Icons\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+    "sidebarWidth": 260,
+    "sidebarBg": "rgba(245, 245, 247, 0.55)",
+    "mainBg": "rgba(0, 0, 0, 0)",
+    "playerHeight": 24,
+    "h1": {
+      "text": "New",
+      "size": "34px",
+      "weight": "700"
+    },
+    "hrefs": []
+  },
+  "album": {
+    "title": "‎The Everafter - EP - Album by Darshan Raval - Apple Music",
+    "bodyBg": "rgb(255, 255, 255)",
+    "bodyColor": "rgba(0, 0, 0, 0.88)",
+    "bodyFont": "-apple-system, \"system-ui\", \"Apple Color Emoji\", \"SF Pro\", \"SF Pro Icons\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+    "sidebarWidth": 260,
+    "sidebarBg": "rgba(38, 38, 40, 0.6)",
+    "mainBg": "rgba(0, 0, 0, 0)",
+    "playerHeight": 24,
+    "h1": {
+      "text": "The Everafter - EP",
+      "size": "26px",
+      "weight": "700"
+    },
+    "hrefs": []
+  },
+  "homeMobile": {
+    "title": "‎Apple Music - Web Player",
+    "bodyBg": "rgb(255, 255, 255)",
+    "bodyColor": "rgba(0, 0, 0, 0.88)",
+    "bodyFont": "-apple-system, \"system-ui\", \"Apple Color Emoji\", \"SF Pro\", \"SF Pro Icons\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+    "sidebarWidth": 390,
+    "sidebarBg": "rgba(245, 245, 247, 0.55)",
+    "mainBg": "rgba(0, 0, 0, 0)",
+    "playerHeight": 32,
+    "h1": {
+      "text": "New",
+      "size": "34px",
+      "weight": "700"
+    },
+    "hrefs": []
+  }
+}

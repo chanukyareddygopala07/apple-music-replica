@@ -1,0 +1,115 @@
+/** History-API router (framework-free). */
+
+export type Route =
+  | { name: 'home' }
+  | { name: 'browse' }
+  | { name: 'radio' }
+  | { name: 'search'; q: string }
+  | { name: 'library'; tab: string }
+  | { name: 'album'; id: string }
+  | { name: 'artist'; id: string }
+  | { name: 'playlist'; id: string }
+  | { name: 'song'; id: string }
+  | { name: 'genre'; id: string }
+  | { name: 'now-playing'; panel: 'queue' | 'lyrics' }
+  | { name: 'not-found'; path: string }
+
+export function parseLocation(loc: { pathname: string; search?: string }): Route {
+  const path = loc.pathname.replace(/\/+$/, '') || '/'
+  const params = new URLSearchParams(loc.search ?? '')
+  if (path === '/') return { name: 'home' }
+  if (path === '/browse') return { name: 'browse' }
+  if (path === '/radio') return { name: 'radio' }
+  if (path === '/search') return { name: 'search', q: params.get('q') ?? '' }
+  if (path === '/library') return { name: 'library', tab: params.get('tab') ?? 'playlists' }
+  if (path === '/now-playing') {
+    const panel = params.get('panel') === 'queue' ? 'queue' : 'lyrics'
+    return { name: 'now-playing', panel }
+  }
+  const m = /^\/(album|artist|playlist|song|genre)\/([^/]+)$/.exec(path)
+  if (m) {
+    const kind = m[1]!
+    const id = decodeURIComponent(m[2]!)
+    if (kind === 'album') return { name: 'album', id }
+    if (kind === 'artist') return { name: 'artist', id }
+    if (kind === 'playlist') return { name: 'playlist', id }
+    if (kind === 'song') return { name: 'song', id }
+    return { name: 'genre', id }
+  }
+  return { name: 'not-found', path }
+}
+
+export function routeKey(route: Route): string {
+  switch (route.name) {
+    case 'search':
+      return `search:${route.q}`
+    case 'library':
+      return `library:${route.tab}`
+    case 'album':
+      return `album:${route.id}`
+    case 'artist':
+      return `artist:${route.id}`
+    case 'playlist':
+      return `playlist:${route.id}`
+    case 'song':
+      return `song:${route.id}`
+    case 'genre':
+      return `genre:${route.id}`
+    case 'now-playing':
+      return `now-playing:${route.panel}`
+    default:
+      return route.name
+  }
+}
+
+export interface Router {
+  current(): Route
+  navigate(href: string, opts?: { replace?: boolean }): void
+  back(): void
+  start(onChange: (route: Route) => void): void
+  setRouteTitle(title: string): void
+}
+
+export function createRouter(): Router {
+  let change: ((route: Route) => void) | null = null
+  const current = (): Route => parseLocation(window.location)
+
+  const emit = () => change?.(current())
+
+  return {
+    current,
+    navigate(href, opts) {
+      const url = new URL(href, window.location.origin)
+      const next = url.pathname + url.search
+      if (opts?.replace) window.history.replaceState(null, '', next)
+      else window.history.pushState(null, '', next)
+      emit()
+    },
+    back() {
+      window.history.back()
+    },
+    start(onChange) {
+      change = onChange
+      window.addEventListener('popstate', emit)
+      emit()
+    },
+    setRouteTitle(title) {
+      document.title = title ? `${title} — Sonora` : 'Sonora'
+    },
+  }
+}
+
+/** Intercept clicks on [data-nav] anchors so the SPA router handles them. */
+export function bindLinkInterception(root: HTMLElement, router: Router): () => void {
+  const handler = (ev: MouseEvent) => {
+    if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return
+    const anchor = (ev.target as Element | null)?.closest?.('a[data-nav], a[href^="/"]') as HTMLAnchorElement | null
+    if (!anchor || !root.contains(anchor)) return
+    const href = anchor.getAttribute('href')
+    if (!href || !href.startsWith('/') || href.startsWith('//')) return
+    ev.preventDefault()
+    router.navigate(href)
+  }
+  root.addEventListener('click', handler)
+  return () => root.removeEventListener('click', handler)
+}
