@@ -3,6 +3,7 @@
 import { search } from '@/data/catalog'
 import { artistName, albumArtist, artistById } from '@/data/catalog-helpers'
 import type { SearchResults } from '@/domain/types'
+import { withBase } from '@/app/router'
 import { attachArtworkFallback, debounce, escapeHtml, on, qs, artImg } from '@/ui/el'
 import { icon } from '@/ui/icons'
 import { albumCardHtml, emptyStateHtml, mediaCardHtml, playlistCardHtml, skeletonRowsHtml, songRowHtml } from '@/ui/media'
@@ -162,7 +163,7 @@ export async function renderSearch(root: HTMLElement, initialQuery: string): Pro
   const debounced = debounce((q: string) => {
     currentQuery = q
     const url = q ? `/search?q=${encodeURIComponent(q)}` : '/search'
-    window.history.replaceState(null, '', url)
+    window.history.replaceState(null, '', withBase(url))
     void runSearch(q)
   }, 220)
 
@@ -171,7 +172,11 @@ export async function renderSearch(root: HTMLElement, initialQuery: string): Pro
     if (ev.key === 'Enter') {
       ev.preventDefault()
       currentQuery = input.value
-      window.history.replaceState(null, '', currentQuery ? `/search?q=${encodeURIComponent(currentQuery)}` : '/search')
+      window.history.replaceState(
+        null,
+        '',
+        withBase(currentQuery ? `/search?q=${encodeURIComponent(currentQuery)}` : '/search'),
+      )
       void runSearch(currentQuery)
     }
   })

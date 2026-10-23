@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseLocation, routeKey } from '@/app/router'
+import { parseLocation, routeKey, stripBase, withBase } from '@/app/router'
 
 describe('parseLocation', () => {
   it('maps top-level paths', () => {
@@ -48,5 +48,34 @@ describe('routeKey', () => {
     expect(routeKey({ name: 'library', tab: 'songs' })).toBe('library:songs')
     expect(routeKey({ name: 'album', id: 'a1' })).toBe('album:a1')
     expect(routeKey({ name: 'now-playing', panel: 'queue' })).toBe('now-playing:queue')
+  })
+})
+
+describe('base path helpers', () => {
+  const base = '/apple-music-replica/'
+
+  it('strips the deploy base for route parsing', () => {
+    expect(stripBase('/apple-music-replica/', base)).toBe('/')
+    expect(stripBase('/apple-music-replica', base)).toBe('/')
+    expect(stripBase('/apple-music-replica/album/al-1', base)).toBe('/album/al-1')
+    expect(stripBase('/album/al-1', base)).toBe('/album/al-1')
+    expect(stripBase('/apple-music-replica-2/album/al-1', base)).toBe('/apple-music-replica-2/album/al-1')
+  })
+
+  it('is a no-op when base is root', () => {
+    expect(stripBase('/album/al-1')).toBe('/album/al-1')
+    expect(withBase('/album/al-1')).toBe('/album/al-1')
+  })
+
+  it('prefixes history paths with the deploy base', () => {
+    expect(withBase('/album/al-1', base)).toBe('/apple-music-replica/album/al-1')
+    expect(withBase('/', base)).toBe('/apple-music-replica/')
+    expect(withBase('/search?q=x', base)).toBe('/apple-music-replica/search?q=x')
+    expect(withBase('/apple-music-replica/album/al-1', base)).toBe('/apple-music-replica/album/al-1')
+  })
+
+  it('parses routes from full Pages pathnames', () => {
+    expect(stripBase('/apple-music-replica/album/al-tidal-lines', base)).toBe('/album/al-tidal-lines')
+    expect(parseLocation({ pathname: stripBase('/apple-music-replica/radio', base) })).toEqual({ name: 'radio' })
   })
 })

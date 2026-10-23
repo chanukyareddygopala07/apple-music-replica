@@ -1,6 +1,6 @@
 /** App shell: sidebar, mobile chrome, view host, player bar, now-playing overlay, keyboard. */
 
-import { bindLinkInterception, type Route } from '@/app/router'
+import { bindLinkInterception, stripBase, type Route } from '@/app/router'
 import { router as sharedRouter } from '@/app/router-bridge'
 import { player } from '@/engine/player'
 import { getCatalog, registerDemoIndexIntoEngine, songById } from '@/data/catalog-helpers'
@@ -279,7 +279,7 @@ export function startShell(root: HTMLElement): Shell {
 
   function markActiveNav(): void {
     const loc = window.location
-    const path = loc.pathname.replace(/\/+$/, '') || '/'
+    const path = stripBase(loc.pathname).replace(/\/+$/, '') || '/'
     root.querySelectorAll<HTMLElement>('[data-nav-href]').forEach((el) => {
       const href = el.getAttribute('data-nav-href') ?? ''
       const active = href === '/' ? path === '/' : path === href || path.startsWith(href + '/')

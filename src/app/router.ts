@@ -1,5 +1,30 @@
 /** History-API router (framework-free). */
 
+/** Deploy base path (`/` locally; e.g. `/apple-music-replica/` on GitHub Pages). */
+const BASE: string = import.meta.env.BASE_URL || '/'
+
+function normalizedBase(base: string): string {
+  return base === '/' ? '' : base.replace(/\/+$/, '')
+}
+
+/** Strip the deploy base prefix from a location pathname (for route parsing). */
+export function stripBase(pathname: string, base: string = BASE): string {
+  const b = normalizedBase(base)
+  if (!b) return pathname
+  if (pathname === b) return '/'
+  if (pathname.startsWith(b + '/')) return pathname.slice(b.length) || '/'
+  return pathname
+}
+
+/** Prefix an app-absolute path with the deploy base (for history writes). */
+export function withBase(path: string, base: string = BASE): string {
+  const b = normalizedBase(base)
+  if (!b) return path
+  if (path === b || path.startsWith(b + '/')) return path
+  if (!path.startsWith('/')) return `${b}/${path}`
+  return b + path
+}
+
 export type Route =
   | { name: 'home' }
   | { name: 'browse' }
@@ -15,7 +40,7 @@ export type Route =
   | { name: 'not-found'; path: string }
 
 export function parseLocation(loc: { pathname: string; search?: string }): Route {
-  const path = loc.pathname.replace(/\/+$/, '') || '/'
+  const path = stripBase(loc.pathname).replace(/\/+$/, '') || '/'
   const params = new URLSearchParams(loc.search ?? '')
   if (path === '/') return { name: 'home' }
   if (path === '/browse') return { name: 'browse' }
@@ -80,7 +105,7 @@ export function createRouter(): Router {
     current,
     navigate(href, opts) {
       const url = new URL(href, window.location.origin)
-      const next = url.pathname + url.search
+      const next = withBase(url.pathname) + url.search
       if (opts?.replace) window.history.replaceState(null, '', next)
       else window.history.pushState(null, '', next)
       emit()

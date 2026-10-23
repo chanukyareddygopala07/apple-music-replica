@@ -3,6 +3,9 @@ import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
   appType: 'spa',
+  // VITE_BASE lets the GitHub Pages workflow build under a subpath;
+  // local dev and preview keep the default '/'.
+  base: process.env.VITE_BASE ?? '/',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
