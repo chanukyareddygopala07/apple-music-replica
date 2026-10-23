@@ -1,5 +1,6 @@
 /** Tiny DOM helpers: html templating, escaping, event delegation, images. */
 
+import { artistPath } from '@/app/router'
 import { artSrc, artworkDataUrl } from '@/utils/artwork'
 
 export function escapeHtml(str: string): string {
@@ -44,6 +45,17 @@ export function on<K extends keyof HTMLElementEventMap>(
 export function artImg(seed: string, alt: string, cls = '', opts?: { round?: boolean; sizes?: string }): string {
   const src = artSrc(seed, opts)
   return `<img class="${cls}" src="${src}" alt="${escapeHtml(alt)}" draggable="false" ${opts?.sizes ? `sizes="${opts.sizes}"` : ''} data-seed="${escapeHtml(seed)}" />`
+}
+
+/**
+ * Byline link to an artist page. When no valid artist id exists, renders the
+ * name as non-clickable text so an empty `/artist/` href is never emitted.
+ */
+export function artistAnchorHtml(name: string, id: string | null | undefined, cls?: string): string {
+  const text = escapeHtml(name)
+  const clsAttr = cls ? ` class="${escapeHtml(cls)}"` : ''
+  const path = artistPath(id)
+  return path ? `<a href="${path}" data-nav${clsAttr}>${text}</a>` : `<span${clsAttr}>${text}</span>`
 }
 
 /** Ensure every seeded <img> has generated artwork; replace broken images with a fallback block. */

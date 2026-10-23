@@ -2,7 +2,7 @@
 
 import type { Song } from '@/domain/types'
 import { getCatalog, artistNamesFor, albumArtist } from '@/data/catalog-helpers'
-import { attachArtworkFallback } from '@/ui/el'
+import { artistAnchorHtml, attachArtworkFallback } from '@/ui/el'
 import { icon } from '@/ui/icons'
 import { albumCardHtml, carouselWrapHtml, emptyStateHtml, sectionHeaderHtml, songRowHtml, applyHeroTheme } from '@/ui/media'
 import { formatTime } from '@/utils/format'
@@ -31,7 +31,7 @@ export async function renderSong(root: HTMLElement, id: string): Promise<void> {
       <div class="hero-info">
         <div class="hero-kicker">Song</div>
         <h1>${song.title.replaceAll('<', '&lt;')}${song.explicit ? '<span class="explicit-badge" style="vertical-align:middle">E</span>' : ''}</h1>
-        <div class="hero-byline"><a href="/artist/${artist?.id ?? ''}" data-nav>${artistNamesFor(song).replaceAll('<', '&lt;')}</a></div>
+        <div class="hero-byline">${artistAnchorHtml(artistNamesFor(song), artist?.id ?? artistId)}</div>
         <div class="hero-meta">
           <a href="/album/${song.albumId}" data-nav style="text-decoration:underline">${(album?.title ?? 'Unknown album').replaceAll('<', '&lt;')}</a>
           · ${formatTime(song.durationMs)}

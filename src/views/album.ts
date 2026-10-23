@@ -2,7 +2,7 @@
 
 import type { Album, Song } from '@/domain/types'
 import { getCatalog, albumArtist, artistName } from '@/data/catalog-helpers'
-import { attachArtworkFallback, on } from '@/ui/el'
+import { artistAnchorHtml, attachArtworkFallback, on } from '@/ui/el'
 import { icon } from '@/ui/icons'
 import { albumCardHtml, carouselWrapHtml, emptyStateHtml, songRowHtml, applyHeroTheme } from '@/ui/media'
 import { formatDate, formatDurationLong, formatSongCount } from '@/utils/format'
@@ -31,7 +31,7 @@ export async function renderAlbum(root: HTMLElement, id: string): Promise<void> 
       <div class="hero-info">
         <div class="hero-kicker">${album.kind === 'ep' ? 'EP' : album.kind === 'single' ? 'Single' : 'Album'}</div>
         <h1>${album.title.replaceAll('<', '&lt;')}</h1>
-        <div class="hero-byline"><a href="/artist/${album.artistId}" data-nav>${albumArtist(album).replaceAll('<', '&lt;')}</a></div>
+        <div class="hero-byline">${artistAnchorHtml(albumArtist(album), album.artistId)}</div>
         <div class="hero-meta">${album.genreIds.length ? album.genreIds[0]?.replace('g-', '').replaceAll('-', ' ') : ''} · ${album.releaseDate.slice(0, 4)}</div>
         ${album.description ? `<p class="hero-desc">${album.description.replaceAll('<', '&lt;')}</p>` : ''}
         <div class="hero-actions">

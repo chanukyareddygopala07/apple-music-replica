@@ -25,6 +25,17 @@ export function withBase(path: string, base: string = BASE): string {
   return b + path
 }
 
+/**
+ * App route for an artist page, or null when the id can't form a valid route.
+ * Callers must render non-clickable text instead of an empty `/artist/` link.
+ * (Links stay app-absolute; `router.navigate`/link interception applies the base.)
+ */
+export function artistPath(id: string | null | undefined): string | null {
+  const v = (id ?? '').trim()
+  if (!v || v === 'undefined' || v === 'null') return null
+  return `/artist/${v}`
+}
+
 export type Route =
   | { name: 'home' }
   | { name: 'browse' }
