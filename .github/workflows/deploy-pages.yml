@@ -17,6 +17,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,6 +28,14 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      # E2E gate. playwright.config.ts builds its own credential-less app
+      # (webServer forces VITE_AUDIUS_ENABLED=0; this step sets no provider
+      # vars, so Jamendo/MusicKit/YouTube stay unconfigured = zero requests)
+      # and previews it on 127.0.0.1:4173. It must run BEFORE the deploy
+      # build below: test:e2e rebuilds dist/ without VITE_BASE, so it cannot
+      # be allowed to overwrite the /apple-music-replica/ artifact we ship.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
       - run: npm run build
         env:
           VITE_BASE: /apple-music-replica/
