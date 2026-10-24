@@ -124,6 +124,48 @@ with M1 secure token plumbing (`src/data/musickit-token.ts`).
   and the token-signing service). Demo mode is fully functional without any
   of this.
 
+## Search filters (language + source)
+
+The search page carries two selectors under the query field — **Language** and
+**Source** — both defaulting to `All languages` / `All sources`. They are real
+state: saved in `localStorage`, written to the URL
+(`/search?q=…&lang=…&src=…`, so a filtered search is shareable), and passed to
+the catalogue facade (`searchGrouped()`), which queries each source
+independently.
+
+How filtering stays honest:
+
+- **Sources are capability-gated, not guessed.** A source is queried only when
+  it can apply the selected language:
+  - **Demo catalogue** — English only (`en`), because all of its fictional
+    content is English.
+  - **Audius** — the Audius API has **no language parameter**, so Audius is
+    searched only under `All languages`; it never pretends to have filtered.
+  - **Apple Music (MusicKit)** — no language filter is implemented here, so it
+    behaves the same way: `All languages` only.
+  - **Jamendo / YouTube** — not offered. Their providers exist in the tree but
+    are not wired into this build's catalogue facade, so they never appear as
+    working sources and never receive a query.
+- **Hidden sources are named.** When a language hides a source you could
+  otherwise search, the results page says which ones ("Hidden for French: Sonora
+  Demo."); if nothing can answer the query, the empty state explains why instead
+  of showing a silent blank.
+- **`Other languages` is a UI-only bucket.** No source can filter by it yet
+  (it carries no ISO 639-1 code), so selecting it hides every source and says so
+  — no fake matches.
+- **Tracks without language metadata are never excluded.** No demo/Audius track
+  carries a language claim today, so per-track filtering is a safety net
+  (`Song.language` + `songMatchesLanguage()`) that stays inert until a provider
+  reports a language; unknown-language tracks stay visible rather than being
+  dropped on a guess.
+- **Failures are per source.** Each source is queried in isolation: an Audius
+  outage marks that group as an error with a notice above the results while the
+  demo results keep working (the same fallback the flat search always had), and
+  picking one specific source never silently falls back to another.
+- **The source selector lists only what this build can search** — `All
+  sources`, Audius (when enabled), Apple Music (when configured), Sonora Demo.
+  A stale URL pointing at an unavailable source clamps back to `All sources`.
+
 ## Layout
 
 ```
@@ -157,3 +199,6 @@ replica/      recon notes, feature matrix, screenshots, milestone plan
 - Lyrics exist for five demo tracks; timings are approximations. Audius
   tracks have no lyrics in this app.
 - MusicKit streaming is out of scope (see above).
+- Search language filtering is capability-based: Audius and MusicKit accept no
+  language parameter, so selecting a language narrows the search to sources that
+  can honour it (today: the English-only demo catalogue, under `en`).

@@ -240,7 +240,7 @@ export function startShell(root: HTMLElement): Shell {
           break
         case 'search':
           sharedRouter.setRouteTitle(route.q ? `Search “${route.q}”` : 'Search')
-          await renderSearch(host, route.q)
+          await renderSearch(host, route.q, { lang: route.lang, src: route.src })
           break
         case 'library':
           sharedRouter.setRouteTitle('Library')

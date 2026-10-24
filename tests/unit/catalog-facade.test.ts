@@ -190,3 +190,147 @@ describe('facade provider surface', () => {
     expect(infos.find((i) => i.id === 'audius')?.configured).toBe(false)
   })
 })
+
+describe('grouped search (language + source selectors)', () => {
+  it('defaults to all languages / all sources, groups in canonical order', async () => {
+    audiusOn()
+    fixtureFetch({
+      '/tracks/search': { data: [auTrack] },
+      '/users/search': { data: [] },
+      '/playlists/search': { data: [] },
+    })
+    const mod: CatalogModule = await freshCatalogModule()
+    const grouped = await mod.searchGrouped('harbor')
+    expect(grouped.language).toBe('all')
+    expect(grouped.source).toBe('all')
+    expect(grouped.hiddenSources).toEqual([])
+    expect(grouped.groups.map((g) => g.source)).toEqual(['audius', 'demo'])
+    expect(grouped.groups.every((g) => g.status === 'ok')).toBe(true)
+    expect(grouped.groups[0]?.results.songs[0]?.id).toBe('au-song-6RN8l')
+  })
+
+  it('flattened search equals the grouped results merged', async () => {
+    audiusOn()
+    fixtureFetch({
+      '/tracks/search': { data: [auTrack] },
+      '/users/search': { data: [] },
+      '/playlists/search': { data: [] },
+    })
+    const mod: CatalogModule = await freshCatalogModule()
+    const grouped = await mod.searchGrouped('harbor')
+    const flat = await mod.search('harbor')
+    expect(flat).toEqual(mod.flattenGrouped(grouped))
+    expect(flat.songs[0]?.id).toBe('au-song-6RN8l')
+    expect(flat.songs.some((s) => !s.id.startsWith('au-'))).toBe(true)
+  })
+
+  it('availableSources reflects configuration and never unwired sources', async () => {
+    audiusOn()
+    const on: CatalogModule = await freshCatalogModule()
+    expect(on.availableSources()).toEqual(['audius', 'demo'])
+    expect(on.availableSources().some((s) => s === 'jamendo' || s === 'youtube')).toBe(false)
+
+    audiusOff()
+    const off: CatalogModule = await freshCatalogModule()
+    expect(off.availableSources()).toEqual(['demo'])
+
+    audiusOn()
+    vi.stubEnv('VITE_MUSICKIT_ENABLED', '1')
+    vi.stubEnv('VITE_MUSICKIT_DEVELOPER_TOKEN', 'aaa.bbb.ccc')
+    const withMusicKit: CatalogModule = await freshCatalogModule()
+    expect(withMusicKit.availableSources()).toEqual(['audius', 'musickit', 'demo'])
+  })
+
+  it('hides sources that cannot filter by the selected language', async () => {
+    audiusOn()
+    fixtureFetch({
+      '/tracks/search': { data: [auTrack] },
+      '/users/search': { data: [] },
+      '/playlists/search': { data: [] },
+    })
+    const mod: CatalogModule = await freshCatalogModule()
+    const english = await mod.searchGrouped('harbor', { language: 'en' })
+    expect(english.language).toBe('en')
+    expect(english.groups.map((g) => g.source)).toEqual(['demo'])
+    expect(english.hiddenSources).toEqual(['audius'])
+    expect(english.groups[0]?.status).toBe('ok')
+  })
+
+  it('searches nothing (and lists every source) when none can filter', async () => {
+    audiusOn()
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const mod: CatalogModule = await freshCatalogModule()
+    const french = await mod.searchGrouped('harbor', { language: 'fr' })
+    expect(french.groups).toEqual([])
+    expect(french.hiddenSources).toEqual(['audius', 'demo'])
+    expect(mod.flattenGrouped(french).songs).toEqual([])
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('an explicit source search never queries the others', async () => {
+    audiusOn()
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const mod: CatalogModule = await freshCatalogModule()
+    const grouped = await mod.searchGrouped('harbor', { source: 'demo' })
+    expect(grouped.groups.map((g) => g.source)).toEqual(['demo'])
+    const flat = await mod.search('harbor', { source: 'demo' })
+    expect(flat.songs.length).toBeGreaterThan(0)
+    expect(flat.songs.every((s) => !s.id.startsWith('au-'))).toBe(true)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('reports unavailable sources honestly instead of pretending', async () => {
+    audiusOff()
+    const mod: CatalogModule = await freshCatalogModule()
+
+    const audius = await mod.searchGrouped('harbor', { source: 'audius' })
+    expect(audius.groups).toHaveLength(1)
+    expect(audius.groups[0]).toMatchObject({ source: 'audius', status: 'disabled' })
+    expect(audius.groups[0]?.message).toContain('VITE_AUDIUS_ENABLED')
+
+    const musicKit = await mod.searchGrouped('harbor', { source: 'musickit' })
+    expect(musicKit.groups[0]).toMatchObject({ source: 'musickit', status: 'unconfigured' })
+    expect(musicKit.groups[0]?.message).toBeTruthy()
+
+    const youtube = await mod.searchGrouped('harbor', { source: 'youtube' })
+    expect(youtube.groups[0]).toMatchObject({ source: 'youtube', status: 'unconfigured' })
+    expect(youtube.groups[0]?.message).toContain('YouTube')
+  })
+
+  it('a source that succeeds with zero hits is empty, not an error', async () => {
+    audiusOn()
+    fixtureFetch({
+      '/tracks/search': { data: [] },
+      '/users/search': { data: [] },
+      '/playlists/search': { data: [] },
+    })
+    const mod: CatalogModule = await freshCatalogModule()
+    const grouped = await mod.searchGrouped('harbor')
+    const audiusGroup = grouped.groups.find((g) => g.source === 'audius')
+    expect(audiusGroup?.status).toBe('empty')
+    expect(audiusGroup?.message).toBeUndefined()
+    // still the legacy slice path (remote group is usable, just empty)
+    const flat = await mod.search('harbor')
+    expect(flat).toEqual(mod.flattenGrouped(grouped))
+    expect(flat.songs.length).toBeGreaterThan(0)
+    expect(flat.songs.every((s) => !s.id.startsWith('au-'))).toBe(true)
+  })
+
+  it('one failing source never breaks the others (demo fallback kept)', async () => {
+    audiusOn()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    const mod: CatalogModule = await freshCatalogModule()
+    const grouped = await mod.searchGrouped('harbor')
+    const audiusGroup = grouped.groups.find((g) => g.source === 'audius')
+    const demoGroup = grouped.groups.find((g) => g.source === 'demo')
+    expect(audiusGroup?.status).toBe('error')
+    expect(audiusGroup?.message).toContain('offline')
+    expect(demoGroup?.status).toBe('ok')
+
+    const flat = await mod.search('harbor')
+    expect(flat.songs.length).toBeGreaterThan(0)
+    expect(flat.songs.every((s) => !s.id.startsWith('au-'))).toBe(true)
+  })
+})

@@ -20,6 +20,17 @@ describe('parseLocation', () => {
     expect(parseLocation({ pathname: '/library' })).toEqual({ name: 'library', tab: 'playlists' })
   })
 
+  it('reads language and source search params', () => {
+    expect(parseLocation({ pathname: '/search', search: '?q=harbor&lang=fr&src=demo' })).toEqual({
+      name: 'search',
+      q: 'harbor',
+      lang: 'fr',
+      src: 'demo',
+    })
+    expect(parseLocation({ pathname: '/search', search: '?lang=es' })).toEqual({ name: 'search', q: '', lang: 'es' })
+    expect(parseLocation({ pathname: '/search', search: '?q=x&src=all' })).toEqual({ name: 'search', q: 'x', src: 'all' })
+  })
+
   it('parses detail routes', () => {
     expect(parseLocation({ pathname: '/album/al-tidal-lines' })).toEqual({ name: 'album', id: 'al-tidal-lines' })
     expect(parseLocation({ pathname: '/artist/a-marigold' })).toEqual({ name: 'artist', id: 'a-marigold' })

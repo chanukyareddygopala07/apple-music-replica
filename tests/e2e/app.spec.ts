@@ -37,6 +37,28 @@ test('search returns grouped results for a catalogue term', async ({ page }) => 
   await expect(page.locator('.top-result, .list-rows .song-row').first()).toBeVisible({ timeout: 10_000 })
 })
 
+test('search filters default to all and sync language/source with the URL', async ({ page }) => {
+  await page.goto('/search?q=harbor')
+  const language = page.locator('#search-language')
+  const source = page.locator('#search-source')
+  await expect(language).toHaveValue('all')
+  await expect(source).toHaveValue('all')
+
+  // The e2e build is demo-only, and the demo catalogue is English-only, so a
+  // French search honestly hides it instead of returning English matches.
+  await language.selectOption('fr')
+  await expect(page).toHaveURL(/lang=fr/)
+  await expect(page.locator('.search-notice')).toContainText('Sonora Demo')
+  await expect(page.locator('#search-body .state-block')).toBeVisible()
+
+  await source.selectOption('demo')
+  await expect(page).toHaveURL(/src=demo/)
+
+  await page.reload()
+  await expect(language).toHaveValue('fr')
+  await expect(source).toHaveValue('demo')
+})
+
 test('album page plays a track and shows the player bar', async ({ page }) => {
   await page.goto('/album/al-tidal-lines')
   await expect(page.getByRole('heading', { name: 'Tidal Lines' })).toBeVisible()

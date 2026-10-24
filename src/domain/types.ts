@@ -54,6 +54,12 @@ export interface Song {
   /** Remote artwork URL when the provider supplies one (Audius); otherwise
    * UI falls back to generated art from `album-{albumId}`. */
   artworkUrl?: string
+  /** App-level language code of the track (`en`, `zh-Hans`, …) when the
+   * provider states one. Absent = unknown: the track is eligible under every
+   * language filter (it cannot honestly be excluded). */
+  language?: string
+  /** How `language` was determined. Absent = unknown. */
+  languageStatus?: 'verified' | 'inferred' | 'unknown'
 }
 
 export interface Playlist {
@@ -98,6 +104,46 @@ export interface SearchResults {
   albums: Album[]
   artists: Artist[]
   playlists: Playlist[]
+}
+
+/** A concrete catalogue source (the `source` search selector). */
+export type CatalogSource = 'demo' | 'audius' | 'jamendo' | 'youtube' | 'musickit'
+
+/** The `source` selector value: a source, or `all` for every source. */
+export type SourceFilter = CatalogSource | 'all'
+
+/** Per-source search outcome; `empty` renders as a hidden group. */
+export type SearchGroupStatus = 'ok' | 'empty' | 'error' | 'unconfigured' | 'disabled'
+
+/** One source's slice of a search, kept separate from every other source. */
+export interface SearchGroup {
+  source: CatalogSource
+  /** Display name shown on the group header + badge. */
+  name: string
+  status: SearchGroupStatus
+  /** Human-readable note for error/unconfigured/disabled groups. */
+  message?: string
+  results: SearchResults
+  /** Opaque cursor for the next page of this group (offset / page token). */
+  cursor?: string
+}
+
+/** Search options: language + source selectors (defaults `all` / `all`). */
+export interface SearchQueryOptions {
+  language?: string
+  source?: SourceFilter
+}
+
+/** Grouped search: results partitioned per source, never merged. */
+export interface GroupedSearchResults {
+  query: string
+  /** Normalised language code actually applied (`all` = none). */
+  language: string
+  source: SourceFilter
+  /** Groups in canonical source order (only eligible sources). */
+  groups: SearchGroup[]
+  /** Eligible sources dropped because they cannot filter by `language`. */
+  hiddenSources: CatalogSource[]
 }
 
 /** A horizontal section on the home / browse screens. */

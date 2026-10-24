@@ -1,18 +1,56 @@
-/** Search view — query field, tabs, grouped results, empty states. */
+/** Search view — query field, language/source filters, tabs, grouped results. */
 
-import { search } from '@/data/catalog'
+import { availableSources, flattenGrouped, searchGrouped } from '@/data/catalog'
 import { artistName, albumArtist, artistById } from '@/data/catalog-helpers'
-import type { SearchResults } from '@/domain/types'
+import type { GroupedSearchResults, SourceFilter } from '@/domain/types'
 import { withBase } from '@/app/router'
 import { attachArtworkFallback, debounce, escapeHtml, on, qs, artImg } from '@/ui/el'
 import { icon } from '@/ui/icons'
 import { albumCardHtml, emptyStateHtml, mediaCardHtml, playlistCardHtml, skeletonRowsHtml, songRowHtml, songArtSeed } from '@/ui/media'
 import { GENRES } from '@/data/demo-catalog'
 import { gradientCss } from '@/utils/artwork'
+import { ALL_LANGUAGES, LANGUAGES, languageLabel, normalizeLanguage } from '@/data/languages'
+import { normalizeSourceFilter, sourceFilterOptions, sourceLabel, sourceName } from '@/data/sources'
+import { prefsStore, setSearchLanguagePref, setSearchSourcePref } from '@/state/prefs-store'
 
 type Tab = 'top' | 'songs' | 'albums' | 'artists' | 'playlists'
 
-export async function renderSearch(root: HTMLElement, initialQuery: string): Promise<void> {
+/** `lang` / `src` URL params for /search (absent = use saved prefs). */
+export interface SearchFilterParams {
+  lang?: string
+  src?: string
+}
+
+export async function renderSearch(root: HTMLElement, initialQuery: string, filters: SearchFilterParams = {}): Promise<void> {
+  const available = availableSources()
+
+  /** A source this build cannot search clamps back to `all`. */
+  const clampSource = (raw: string | null | undefined): SourceFilter => {
+    const norm = normalizeSourceFilter(raw)
+    return norm === 'all' || available.includes(norm) ? norm : 'all'
+  }
+
+  const saved = prefsStore.get()
+  const fromUrl = filters.lang !== undefined || filters.src !== undefined
+  let currentLanguage =
+    filters.lang !== undefined ? normalizeLanguage(filters.lang) : normalizeLanguage(saved.language)
+  let currentSource = filters.src !== undefined ? clampSource(filters.src) : clampSource(saved.source)
+  if (fromUrl || currentLanguage !== saved.language || currentSource !== saved.source) {
+    setSearchLanguagePref(currentLanguage)
+    setSearchSourcePref(currentSource)
+  }
+
+  const languageOptionsHtml = LANGUAGES.map(
+    (l) =>
+      `<option value="${escapeHtml(l.code)}"${l.code === currentLanguage ? ' selected' : ''}>${escapeHtml(l.label)}</option>`,
+  ).join('')
+  const sourceOptionsHtml = sourceFilterOptions(available)
+    .map(
+      (s) =>
+        `<option value="${escapeHtml(s)}"${s === currentSource ? ' selected' : ''}>${escapeHtml(sourceLabel(s))}</option>`,
+    )
+    .join('')
+
   root.innerHTML = `
     <div style="padding:24px 40px 8px" class="search-head">
       <div class="search-pill-wrap">
@@ -22,16 +60,43 @@ export async function renderSearch(root: HTMLElement, initialQuery: string): Pro
           <button type="button" class="icon-btn clear-btn" data-action="search-clear" aria-label="Clear search">${icon('close')}</button>
         </div>
       </div>
+      <div class="search-filters">
+        <label class="filter-field" for="search-language">
+          <span class="filter-label">Language</span>
+          <select id="search-language" class="filter-select">${languageOptionsHtml}</select>
+        </label>
+        <label class="filter-field" for="search-source">
+          <span class="filter-label">Source</span>
+          <select id="search-source" class="filter-select">${sourceOptionsHtml}</select>
+        </label>
+      </div>
     </div>
     <div id="search-body"></div>`
 
   const input = qs<HTMLInputElement>('#search-input', root)!
   const body = qs<HTMLElement>('#search-body', root)!
+  const languageSelect = qs<HTMLSelectElement>('#search-language', root)
+  const sourceSelect = qs<HTMLSelectElement>('#search-source', root)
   if (!input || !body) return
 
   let currentQuery = initialQuery
   let currentTab: Tab = 'top'
   let seq = 0
+
+  /** Keep the URL shareable: q + non-default filters only. */
+  function syncUrl(): void {
+    const params = new URLSearchParams()
+    if (currentQuery.trim()) params.set('q', currentQuery)
+    if (currentLanguage !== ALL_LANGUAGES) params.set('lang', currentLanguage)
+    if (currentSource !== 'all') params.set('src', currentSource)
+    const search = params.toString()
+    window.history.replaceState(null, '', withBase(search ? `/search?${search}` : '/search'))
+  }
+
+  function refresh(): void {
+    if (currentQuery.trim()) void runSearch(currentQuery)
+    else body.innerHTML = idleHtml()
+  }
 
   const categoriesHtml = () => `
     <div class="section-header"><h2 class="section-title">Browse Categories</h2></div>
@@ -47,6 +112,20 @@ export async function renderSearch(root: HTMLElement, initialQuery: string): Pro
 
   const idleHtml = () => `<h1 class="page-title">Search</h1>${categoriesHtml()}`
 
+  /** Why results are missing / partial: hidden sources + per-source problems. */
+  function noticesFor(g: GroupedSearchResults): string[] {
+    const notes: string[] = []
+    if (g.hiddenSources.length) {
+      notes.push(`Hidden for ${languageLabel(g.language)}: ${g.hiddenSources.map(sourceName).join(', ')}.`)
+    }
+    for (const grp of g.groups) {
+      if (grp.status === 'error' || grp.status === 'unconfigured' || grp.status === 'disabled') {
+        notes.push(`${grp.name}: ${grp.message ?? 'Unavailable.'}`)
+      }
+    }
+    return notes
+  }
+
   async function runSearch(q: string): Promise<void> {
     const mySeq = ++seq
     if (!q.trim()) {
@@ -54,15 +133,24 @@ export async function renderSearch(root: HTMLElement, initialQuery: string): Pro
       return
     }
     body.innerHTML = `<div style="padding:0 40px">${skeletonRowsHtml(5)}</div>`
-    const results: SearchResults = await search(q)
+    const grouped = await searchGrouped(q, { language: currentLanguage, source: currentSource })
     if (mySeq !== seq) return
-    renderResults(results)
+    renderResults(grouped)
   }
 
-  function renderResults(r: SearchResults): void {
+  function renderResults(grouped: GroupedSearchResults): void {
+    const r = flattenGrouped(grouped)
+    const notes = noticesFor(grouped)
+    const noticeHtml = notes.length
+      ? `<div class="search-notice" role="status">${escapeHtml(notes.join(' '))}</div>`
+      : ''
+
     const total = r.songs.length + r.albums.length + r.artists.length + r.playlists.length
     if (total === 0) {
-      body.innerHTML = `${emptyStateHtml('search', `No results for “${r.query}”`, 'Try a different spelling, artist or song title.')}`
+      const desc = notes.length
+        ? 'Try another query, or adjust the language and source filters.'
+        : 'Try a different spelling, artist or song title.'
+      body.innerHTML = `${noticeHtml}${emptyStateHtml('search', `No results for “${r.query}”`, desc)}`
       return
     }
 
@@ -146,6 +234,7 @@ export async function renderSearch(root: HTMLElement, initialQuery: string): Pro
 
     body.innerHTML = `
       <h1 class="page-title">Search</h1>
+      ${noticeHtml}
       <div class="tabs-row" role="tablist" aria-label="Search result filters">
         ${tabs.map((t) => `<button type="button" class="chip" role="tab" aria-selected="${t.id === currentTab}" data-tab="${t.id}">${t.label}</button>`).join('')}
       </div>
@@ -155,15 +244,14 @@ export async function renderSearch(root: HTMLElement, initialQuery: string): Pro
     body.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         currentTab = (btn.getAttribute('data-tab') as Tab) ?? 'top'
-        renderResults(r)
+        renderResults(grouped)
       })
     })
   }
 
   const debounced = debounce((q: string) => {
     currentQuery = q
-    const url = q ? `/search?q=${encodeURIComponent(q)}` : '/search'
-    window.history.replaceState(null, '', withBase(url))
+    syncUrl()
     void runSearch(q)
   }, 220)
 
@@ -172,13 +260,21 @@ export async function renderSearch(root: HTMLElement, initialQuery: string): Pro
     if (ev.key === 'Enter') {
       ev.preventDefault()
       currentQuery = input.value
-      window.history.replaceState(
-        null,
-        '',
-        withBase(currentQuery ? `/search?q=${encodeURIComponent(currentQuery)}` : '/search'),
-      )
+      syncUrl()
       void runSearch(currentQuery)
     }
+  })
+  languageSelect?.addEventListener('change', () => {
+    currentLanguage = normalizeLanguage(languageSelect.value)
+    setSearchLanguagePref(currentLanguage)
+    syncUrl()
+    refresh()
+  })
+  sourceSelect?.addEventListener('change', () => {
+    currentSource = clampSource(sourceSelect.value)
+    setSearchSourcePref(currentSource)
+    syncUrl()
+    refresh()
   })
   on(root, 'click', '[data-action="search-clear"]', () => {
     input.value = ''

@@ -40,7 +40,7 @@ export type Route =
   | { name: 'home' }
   | { name: 'browse' }
   | { name: 'radio' }
-  | { name: 'search'; q: string }
+  | { name: 'search'; q: string; lang?: string; src?: string }
   | { name: 'library'; tab: string }
   | { name: 'album'; id: string }
   | { name: 'artist'; id: string }
@@ -56,7 +56,17 @@ export function parseLocation(loc: { pathname: string; search?: string }): Route
   if (path === '/') return { name: 'home' }
   if (path === '/browse') return { name: 'browse' }
   if (path === '/radio') return { name: 'radio' }
-  if (path === '/search') return { name: 'search', q: params.get('q') ?? '' }
+  if (path === '/search') {
+    const route: { name: 'search'; q: string; lang?: string; src?: string } = {
+      name: 'search',
+      q: params.get('q') ?? '',
+    }
+    const lang = params.get('lang')
+    const src = params.get('src')
+    if (lang) route.lang = lang
+    if (src) route.src = src
+    return route
+  }
   if (path === '/library') return { name: 'library', tab: params.get('tab') ?? 'playlists' }
   if (path === '/now-playing') {
     const panel = params.get('panel') === 'queue' ? 'queue' : 'lyrics'
