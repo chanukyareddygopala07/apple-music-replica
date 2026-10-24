@@ -86,6 +86,11 @@ function jamendoOn(clientId = 'test-client-id'): void {
   vi.stubEnv('VITE_JAMENDO_CLIENT_ID', clientId)
 }
 
+/** Configures YouTube the way a real deployment does (public API key). */
+function youtubeOn(apiKey = 'test-yt-key'): void {
+  vi.stubEnv('VITE_YOUTUBE_API_KEY', apiKey)
+}
+
 /** Every provider Jamendo-grouped tests need, keyed by pathname suffix. */
 function allProviderRoutes(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -93,6 +98,41 @@ function allProviderRoutes(extra: Record<string, unknown> = {}): Record<string, 
     '/users/search': { data: [] },
     '/playlists/search': { data: [] },
     '/v3.0/tracks': jamendoEnvelope([jmTrack]),
+    ...extra,
+  }
+}
+
+/** Documented YouTube search.list snippet item (developer docs shape). */
+const ytSearchItem = {
+  id: { kind: 'youtube#video', videoId: 'dQw4w9WgXcQ' },
+  snippet: {
+    title: 'Harbor Lights Live',
+    description: 'A live take.',
+    channelId: 'UCxyz1234567890abcdef',
+    channelTitle: 'Ada Sessions',
+    publishedAt: '2024-05-01T12:00:00Z',
+    liveBroadcastContent: 'none',
+    thumbnails: {
+      medium: { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mq.jpg', width: 320, height: 180 },
+    },
+  },
+}
+
+/** Documented videos.list item (detail page). */
+const ytVideoItem = {
+  id: 'dQw4w9WgXcQ',
+  snippet: ytSearchItem.snippet,
+  contentDetails: { duration: 'PT3M33S' },
+  status: { madeForKids: false },
+}
+
+function ytRoutes(extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    '/youtube/v3/search': { items: [ytSearchItem], pageInfo: { totalResults: 1 } },
+    '/youtube/v3/videos': { items: [ytVideoItem] },
+    '/youtube/v3/channels': {
+      items: [{ id: 'UCxyz1234567890abcdef', snippet: { title: 'Ada Sessions' } }],
+    },
     ...extra,
   }
 }
@@ -219,14 +259,16 @@ describe('facade with Audius enabled (live-shaped fixtures)', () => {
 })
 
 describe('facade provider surface', () => {
-  it('reports every provider to Settings, Jamendo unconfigured by default', async () => {
+  it('reports every provider to Settings, Jamendo and YouTube unconfigured by default', async () => {
     audiusOff()
     const mod: CatalogModule = await freshCatalogModule()
     const infos = mod.providerInfos()
-    expect(infos.map((i) => i.id)).toEqual(['demo', 'audius', 'jamendo', 'musickit'])
+    expect(infos.map((i) => i.id)).toEqual(['demo', 'audius', 'jamendo', 'youtube', 'musickit'])
     expect(infos.find((i) => i.id === 'audius')?.configured).toBe(false)
     expect(infos.find((i) => i.id === 'jamendo')?.configured).toBe(false)
     expect(infos.find((i) => i.id === 'jamendo')?.description).toContain('VITE_JAMENDO_CLIENT_ID')
+    expect(infos.find((i) => i.id === 'youtube')?.configured).toBe(false)
+    expect(infos.find((i) => i.id === 'youtube')?.description).toContain('VITE_YOUTUBE_API_KEY')
   })
 })
 
@@ -267,7 +309,7 @@ describe('grouped search (language + source selectors)', () => {
     audiusOn()
     const on: CatalogModule = await freshCatalogModule()
     expect(on.availableSources()).toEqual(['audius', 'demo']) // Jamendo needs a client id
-    expect(on.availableSources().some((s) => s === 'youtube')).toBe(false) // never wired
+    expect(on.availableSources().some((s) => s === 'youtube')).toBe(false) // needs an API key
 
     audiusOff()
     const off: CatalogModule = await freshCatalogModule()
@@ -338,6 +380,8 @@ describe('grouped search (language + source selectors)', () => {
 
   it('reports unavailable sources honestly instead of pretending', async () => {
     audiusOff()
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
     const mod: CatalogModule = await freshCatalogModule()
 
     const audius = await mod.searchGrouped('harbor', { source: 'audius' })
@@ -352,6 +396,9 @@ describe('grouped search (language + source selectors)', () => {
     const youtube = await mod.searchGrouped('harbor', { source: 'youtube' })
     expect(youtube.groups[0]).toMatchObject({ source: 'youtube', status: 'unconfigured' })
     expect(youtube.groups[0]?.message).toContain('YouTube')
+    expect(youtube.groups[0]?.message).toContain('VITE_YOUTUBE_API_KEY')
+    expect(youtube.groups[0]?.results.songs).toEqual([])
+    expect(fetchSpy).not.toHaveBeenCalled() // keyless source never fetches
   })
 
   it('a source that succeeds with zero hits is empty, not an error', async () => {
@@ -550,5 +597,154 @@ describe('grouped search with Jamendo configured (wired provider)', () => {
     expect(registry.remoteSong('jm-song-1848357')?.title).toBe('Harbor Lights')
     expect(registry.remoteArtist('jm-artist-421168')?.name).toBe('Ada')
     expect(registry.remoteAlbum('jm-album-368084')?.title).toBe('Harbor')
+  })
+})
+
+describe('grouped search with YouTube configured (dedicated-view policy)', () => {
+  it('never aggregates YouTube into All sources, even when configured', async () => {
+    audiusOn()
+    youtubeOn()
+    const { fn } = fixtureFetch(allProviderRoutes(ytRoutes()))
+    const mod: CatalogModule = await freshCatalogModule()
+    const grouped = await mod.searchGrouped('harbor')
+
+    expect(grouped.groups.map((g) => g.source)).toEqual(['audius', 'demo']) // no youtube group
+    expect(grouped.hiddenSources).not.toContain('youtube') // policy exclusion, not a language hide
+    const flat = mod.flattenGrouped(grouped)
+    expect(flat.songs.some((s) => s.id.startsWith('yt-'))).toBe(false)
+    const urls = fn.mock.calls.map((c) => String(c[0]))
+    expect(urls.some((u) => u.includes('googleapis.com/youtube'))).toBe(false)
+  })
+
+  it('an explicit YouTube source queries YouTube alone with the documented search.list params', async () => {
+    audiusOn()
+    youtubeOn()
+    const { fn } = fixtureFetch(allProviderRoutes(ytRoutes()))
+    const mod: CatalogModule = await freshCatalogModule()
+
+    const grouped = await mod.searchGrouped('harbor', { source: 'youtube' })
+    expect(grouped.groups.map((g) => g.source)).toEqual(['youtube'])
+    expect(grouped.groups[0]?.status).toBe('ok')
+    expect(grouped.groups[0]?.results.songs[0]).toMatchObject({
+      id: 'yt-dQw4w9WgXcQ',
+      source: 'youtube',
+      playbackKind: 'youtube',
+      audioUrl: '',
+      durationMs: 213_000,
+      externalUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    })
+    // Isolated: no other provider is ever fetched for source=youtube.
+    const urls = fn.mock.calls.map((c) => String(c[0]))
+    expect(urls.every((u) => u.includes('googleapis.com/youtube'))).toBe(true)
+
+    const searchUrl = urls.find((u) => u.includes('/youtube/v3/search'))
+    expect(searchUrl).toBeDefined()
+    const p = new URL(searchUrl!).searchParams
+    expect(p.get('part')).toBe('snippet')
+    expect(p.get('type')).toBe('video')
+    expect(p.get('videoEmbeddable')).toBe('true')
+    expect(p.get('maxResults')).toBe('10')
+    expect(p.get('key')).toBe('test-yt-key')
+    expect(p.get('relevanceLanguage')).toBeNull() // all languages → no hint sent
+
+    // Flat slice: YouTube results only, never blended with demo/audius rows.
+    const flat = mod.flattenGrouped(grouped)
+    expect(flat.songs.map((s) => s.id)).toEqual(['yt-dQw4w9WgXcQ'])
+  })
+
+  it('honours a supported language: YouTube stays eligible with relevanceLanguage on the wire', async () => {
+    audiusOn()
+    youtubeOn()
+    const { fn } = fixtureFetch(allProviderRoutes(ytRoutes()))
+    const mod: CatalogModule = await freshCatalogModule()
+    const grouped = await mod.searchGrouped('harbor', { language: 'fr', source: 'youtube' })
+
+    expect(grouped.hiddenSources).toEqual([])
+    expect(grouped.groups.map((g) => g.source)).toEqual(['youtube'])
+    const searchUrl = fn.mock.calls.map((c) => String(c[0])).find((u) => u.includes('/youtube/v3/search'))
+    expect(new URL(searchUrl!).searchParams.get('relevanceLanguage')).toBe('fr')
+  })
+
+  it('Other languages hides YouTube too and queries nothing', async () => {
+    audiusOn()
+    youtubeOn()
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const mod: CatalogModule = await freshCatalogModule()
+    const grouped = await mod.searchGrouped('harbor', { language: 'other', source: 'youtube' })
+
+    expect(grouped.hiddenSources).toEqual(['youtube'])
+    expect(grouped.groups).toEqual([])
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('routes yt-* entity ids to YouTube, demo ids to demo, and invents no playlists/genres', async () => {
+    audiusOn()
+    youtubeOn()
+    const { calls } = fixtureFetch(allProviderRoutes(ytRoutes()))
+    const catalog = await freshCatalog()
+
+    const song = await catalog.getSong('yt-dQw4w9WgXcQ')
+    expect(song).toMatchObject({ id: 'yt-dQw4w9WgXcQ', source: 'youtube', playbackKind: 'youtube' })
+    await expect(catalog.getAlbum('yt-album-dQw4w9WgXcQ')).resolves.toMatchObject({
+      id: 'yt-album-dQw4w9WgXcQ',
+      title: 'Harbor Lights Live',
+    })
+    await expect(catalog.getArtist('yt-artist-UCxyz1234567890abcdef')).resolves.toMatchObject({
+      id: 'yt-artist-UCxyz1234567890abcdef',
+      name: 'Ada Sessions',
+    })
+    await expect(catalog.getSongsByAlbum('yt-album-dQw4w9WgXcQ')).resolves.toHaveLength(1)
+    // Unsupported surfaces stay honestly absent.
+    await expect(catalog.getPlaylist('yt-playlist-x')).resolves.toBeNull()
+    await expect(catalog.getGenre('yt-genre-x')).resolves.toBeNull()
+
+    // Demo ids never trigger a request (even with YouTube configured).
+    const before = calls.length
+    await expect(catalog.getSong('s-mg-1')).resolves.toMatchObject({ id: 's-mg-1' })
+    expect(calls.length).toBe(before)
+  })
+
+  it('never fetches YouTube data for yt-* ids when no API key is configured', async () => {
+    audiusOff()
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const catalog = await freshCatalog()
+    await expect(catalog.getSong('yt-dQw4w9WgXcQ')).resolves.toBeNull()
+    await expect(catalog.getAlbum('yt-album-dQw4w9WgXcQ')).resolves.toBeNull()
+    await expect(catalog.getArtist('yt-artist-UCxyz1234567890abcdef')).resolves.toBeNull()
+    expect(fetchSpy).not.toHaveBeenCalled()
+    await expect(catalog.getTopSongsByArtist('yt-artist-UCxyz1234567890abcdef')).resolves.toEqual([])
+  })
+
+  it('records made-for-kids from videos.list and treats a missing status as unknown', async () => {
+    audiusOn()
+    youtubeOn()
+    fixtureFetch(allProviderRoutes(ytRoutes()))
+    const mod: CatalogModule = await freshCatalogModule()
+    expect(mod.youtubeMadeForKids('yt-dQw4w9WgXcQ')).toBeUndefined() // no lookup yet
+    await mod.catalog.getSong('yt-dQw4w9WgXcQ')
+    expect(mod.youtubeMadeForKids('yt-dQw4w9WgXcQ')).toBe(false)
+    expect(mod.youtubeMadeForKids('s-mg-1')).toBeUndefined() // not a yt id
+
+    // videos.list omitted status → unknown (must be embedded conservatively).
+    fixtureFetch(
+      allProviderRoutes(
+        ytRoutes({
+          '/youtube/v3/videos': {
+            items: [
+              {
+                id: 'aBcD1234567',
+                snippet: { title: 'T', channelId: 'UCx', channelTitle: 'C' },
+                contentDetails: { duration: 'PT1M' },
+              },
+            ],
+          },
+        }),
+      ),
+    )
+    const mod2: CatalogModule = await freshCatalogModule()
+    await mod2.catalog.getSong('yt-aBcD1234567')
+    expect(mod2.youtubeMadeForKids('yt-aBcD1234567')).toBeUndefined()
   })
 })

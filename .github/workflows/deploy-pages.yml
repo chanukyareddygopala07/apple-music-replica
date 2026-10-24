@@ -49,6 +49,12 @@ jobs:
           # is simply not offered in production (zero requests, app unchanged).
           VITE_JAMENDO_ENABLED: ${{ vars.VITE_JAMENDO_ENABLED }}
           VITE_JAMENDO_CLIENT_ID: ${{ vars.VITE_JAMENDO_CLIENT_ID }}
+          # YouTube discovery key (public Actions *variable*, not a secret —
+          # referrer-restrict the key in Google Cloud). Empty =
+          # VITE_YOUTUBE_API_KEY = the YouTube source is not offered (zero
+          # requests); /watch still plays the official embed keylessly.
+          VITE_YOUTUBE_ENABLED: ${{ vars.VITE_YOUTUBE_ENABLED }}
+          VITE_YOUTUBE_API_KEY: ${{ vars.VITE_YOUTUBE_API_KEY }}
           # Public MusicKit config (repo Actions *variables*, not secrets).
           # Empty until `gh variable set ...` — empty gate = demo unchanged.
           VITE_MUSICKIT_ENABLED: ${{ vars.VITE_MUSICKIT_ENABLED }}

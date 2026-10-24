@@ -144,6 +144,77 @@ demo catalogue.
   `npm run smoke:jamendo` is the live browser check (search → row → real
   playback → elapsed time advancing).
 
+## YouTube (official watch embed)
+
+Sonora can search **YouTube** for embeddable videos and play them in the
+**official YouTube player** on a dedicated `/watch/:id` page — a separate
+playback path that never touches the `<audio>` engine.
+
+- **Discovery needs a key; playback never does.** Search uses the
+  [YouTube Data API v3](https://developers.google.com/youtube/v3/docs/search/list)
+  (`search.list` with `type=video` + `videoEmbeddable=true`, `maxResults=10`,
+  plus one cheap `videos.list` for durations). Playback uses the official
+  [IFrame Player API](https://developers.google.com/youtube/iframe_api_reference)
+  embed, which requires no key — a keyless build still opens `/watch` and
+  plays (privacy-enhanced embed), falling back to an external "Watch on
+  YouTube" link if the player cannot start.
+- **Getting a key (free):** [console.cloud.google.com](https://console.cloud.google.com)
+  → create a project → enable **YouTube Data API v3** → *Credentials* →
+  *Create API key* → **restrict it by HTTP referrer** (API restrictions).
+  It is a **public build-time value** (Vite embeds every `VITE_*` variable in
+  the bundle) — the referrer restriction is the protection, never treat the
+  key as a secret in client config. Quota: the free tier allows **100
+  `search.list` calls/day**; this app spends 1 search + 1 `videos.list` per
+  query (quota errors surface as an honest per-source error notice).
+- **Local setup:** `VITE_YOUTUBE_API_KEY=<your key>` in `.env` (or
+  `VITE_YOUTUBE_ENABLED=0` to force it off). **Production setup:** repo
+  Actions *variables* (not secrets): `gh variable set VITE_YOUTUBE_API_KEY
+  --body "<your key>"` — the Pages workflow passes them into the build.
+- **Without a key:** the source selector omits YouTube, a shared URL with
+  `src=youtube` shows an honest "unconfigured" notice naming
+  `VITE_YOUTUBE_API_KEY`, and **zero requests** are made — the same contract
+  as Jamendo. Audius/Jamendo/demo behave exactly as before.
+- **Dedicated view, never blended (policy decision).** YouTube results only
+  appear under the explicit `YouTube` source filter and on `/watch` — they are
+  **excluded from `All sources` aggregation**. YouTube's current policy
+  guidance is ambiguous about combining API data with other sources
+  ([Developer Policies III.E.2](https://developers.google.com/youtube/terms/developer-policies)
+  / III.C.5 vs. the compliance guide's side-by-side example), so this app
+  takes the conservative reading: YouTube rows always carry their own
+  attribution and are never intermixed into another provider's result list.
+- **Language filter:** a selected language is sent as YouTube's
+  `relevanceLanguage` (e.g. `zh-Hans`/`zh-Hant` pass through as documented;
+  `Other languages` hides the source). It is a relevance **hint**, never a
+  language verification — results are shown as YouTube's, not relabelled.
+- **Playback rules honoured:** the player is visible and clearly YouTube's
+  (never backgrounded, never audio-only, default YouTube controls — no
+  `playerVars` overrides), **never autoplays** (press play), and opening
+  `/watch` pauses the Sonora audio engine so two sources can never overlap.
+  Navigating away destroys the embed. Error codes and embed restrictions fall
+  back to the official watch link.
+- **Made-for-kids (Developer Policies III.E.4.j):** each video's
+  `status.madeForKids` is looked up via `videos.list`; made-for-kids (or
+  unknown) videos embed through **privacy-enhanced mode**
+  (`youtube-nocookie.com`), confirmed non-MFK videos use the standard embed.
+  The lookup result lives in session memory only; search/detail caches are
+  in-memory TTLs (60s/5min) and nothing about viewing is persisted.
+- **Unsupported (documented, never faked):** channel/album search lists,
+  editorial feeds, playlists, stations, genre pages. A channel's songs come
+  only from what this session has already seen (a channel search would spend
+  a full quota call).
+- **Before you launch publicly:** YouTube's policies require your app to have
+  its own Terms of Service and Privacy Policy and to link YouTube's Terms of
+  Service (III.A.1/A.2) — the watch page already links YouTube's Terms;
+  shipping the full legal pages is a pre-launch task (see
+  `replica/mvp-reference-plan.md` §8).
+- **Verification:** unit tests cover config, client (params/error
+  mapping/TTL cache), normalisation, provider routing/MFK, the embed wrapper
+  (ready-gating, privacy-enhanced mode, state/error events) and the facade's
+  dedicated-view policy; five e2e tests cover the keyless contracts (source
+  absent, `?src=youtube` notice, watch fallback + engine pause, zero
+  googleapis requests). **Live search with a real key has not been verified**
+  (no key available for this environment — honesty over claims).
+
 ## Optional Apple Music (MusicKit) provider
 
 Audius (above) is the primary external provider; Apple Music remains an
@@ -197,11 +268,15 @@ How filtering stays honest:
   - **Jamendo** (offered when a client id is configured) — can filter: its
     queries carry Jamendo's documented 2-letter `lang` parameter
     (`zh-Hans`/`zh-Hant` → `zh`), applied by Jamendo's servers.
+  - **YouTube** (offered when an API key is configured) — sends YouTube's
+    `relevanceLanguage` for the selected language (`zh-Hans`/`zh-Hant` pass
+    through as YouTube documents), a relevance **hint** applied by YouTube's
+    servers; `Other languages` hides it like every unrepresentable language.
+    YouTube is additionally never part of `All sources` — it only answers
+    under its own explicit source filter (policy decision, see the YouTube
+    section above).
   - **Apple Music (MusicKit)** — no language filter is implemented here, so it
     behaves the same way: `All languages` only.
-  - **YouTube** — not offered. Its provider exists in the tree but is not
-    wired into this build's catalogue facade, so it never appears as a
-    working source and never receives a query.
 - **Hidden sources are named.** When a language hides a source you could
   otherwise search, the results page says which ones ("Hidden for French: Sonora
   Demo."); if nothing can answer the query, the empty state explains why instead
@@ -223,8 +298,10 @@ How filtering stays honest:
   silently falls back to another.
 - **The source selector lists only what this build can search** — `All
   sources`, Audius (when enabled), Jamendo (when a client id is configured),
-  Apple Music (when configured), Sonora Demo. A stale URL pointing at an
-  unavailable source clamps back to `All sources`.
+  YouTube (when an API key is configured), Apple Music (when configured),
+  Sonora Demo. A stale URL pointing at an unavailable source clamps back to
+  `All sources` — except `src=youtube`, which shows its honest setup notice
+  instead of silently pretending nothing was asked.
 
 ## Layout
 
@@ -265,6 +342,13 @@ replica/      recon notes, feature matrix, screenshots, milestone plan
   tracks have no lyrics in this app (and Jamendo lyrics are out of scope:
   only the stated language metadata is read).
 - MusicKit streaming is out of scope (see above).
+- YouTube discovery spends from a free quota of **100 searches/day** and has
+  **not been verified live with a real key** (keyless contracts are tested).
+  YouTube playback is always YouTube's official embedded player on `/watch`
+  (visible, never autoplayed, never merged into the audio queue), and a
+  public launch still needs this app's own Terms of Service + Privacy Policy
+  (YouTube Developer Policies III.A.1/A.2 — the watch page already links
+  YouTube's Terms).
 - Search language filtering is capability-based: Audius and MusicKit accept
   no language parameter, so selecting a language narrows the search to
   sources that can honour it (today: the English-only demo catalogue under

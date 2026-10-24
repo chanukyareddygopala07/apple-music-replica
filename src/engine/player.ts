@@ -9,6 +9,7 @@
  */
 
 import type { PlaybackStatus, QueueItem, RepeatMode, Song } from '@/domain/types'
+import { youtubeVideoId } from '@/data/youtube-normalize'
 
 export interface PlayerSnapshot {
   status: PlaybackStatus
@@ -237,7 +238,14 @@ export class PlayerEngine {
 
   /** Start (or restart) a queue of songs. Always replaces the current queue. */
   playQueue(songs: Song[], startIndex = 0, opts: PlayQueueOptions = {}): void {
-    if (songs.length === 0) return
+    // Defence in depth: YouTube videos must never become <audio> queue items
+    // (they play only on /watch via the official embed). Callers route them
+    // there already; this keeps the invariant even if a new caller forgets.
+    const startId = songs[startIndex]?.id
+    const playable = songs.filter((s) => s.playbackKind !== 'youtube')
+    if (playable.length === 0) return
+    songs = playable
+    startIndex = startId ? Math.max(0, playable.findIndex((s) => s.id === startId)) : 0
     this.rememberSongs(songs)
     const items: QueueItem[] = songs.map((s) => ({ queueItemId: queueItemId(), songId: s.id }))
     let start = Math.min(Math.max(0, startIndex), items.length - 1)
@@ -420,6 +428,8 @@ export class PlayerEngine {
 
   /** Append songs to the end of the queue (playing if idle). */
   enqueue(songIds: string[], opts: { playNext?: boolean; playIfIdle?: boolean } = {}): void {
+    // Same invariant as playQueue: yt-* ids are never queued into <audio>.
+    songIds = songIds.filter((id) => !youtubeVideoId(id))
     if (songIds.length === 0) return
     const items: QueueItem[] = songIds.map((id) => ({ queueItemId: queueItemId(), songId: id }))
     const { queue, index, currentSongId } = this.snapshot

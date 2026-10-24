@@ -47,6 +47,7 @@ export type Route =
   | { name: 'playlist'; id: string }
   | { name: 'song'; id: string }
   | { name: 'genre'; id: string }
+  | { name: 'watch'; id: string }
   | { name: 'now-playing'; panel: 'queue' | 'lyrics' }
   | { name: 'not-found'; path: string }
 
@@ -82,6 +83,8 @@ export function parseLocation(loc: { pathname: string; search?: string }): Route
     if (kind === 'song') return { name: 'song', id }
     return { name: 'genre', id }
   }
+  const w = /^\/watch\/([^/]+)$/.exec(path)
+  if (w) return { name: 'watch', id: decodeURIComponent(w[1]!) }
   return { name: 'not-found', path }
 }
 
@@ -101,6 +104,8 @@ export function routeKey(route: Route): string {
       return `song:${route.id}`
     case 'genre':
       return `genre:${route.id}`
+    case 'watch':
+      return `watch:${route.id}`
     case 'now-playing':
       return `now-playing:${route.panel}`
     default:

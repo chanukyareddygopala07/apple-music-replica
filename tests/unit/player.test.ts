@@ -136,3 +136,55 @@ describe('PlayerEngine volume and restore', () => {
     expect(p.getSnapshot().status).not.toBe('playing')
   })
 })
+
+describe('PlayerEngine YouTube invariant (never queued into <audio>)', () => {
+  const ytSong: Song = {
+    id: 'yt-dQw4w9WgXcQ',
+    title: 'Watch me',
+    albumId: 'yt-album-dQw4w9WgXcQ',
+    artistIds: ['yt-artist-UCx'],
+    durationMs: 0,
+    trackNumber: 0,
+    audioUrl: '',
+    source: 'youtube',
+    playbackKind: 'youtube',
+  }
+
+  it('playQueue drops youtube songs from a mixed queue and keeps the rest', () => {
+    const p = new PlayerEngine()
+    p.playQueue([SONGS[0]!, ytSong, SONGS[1]!], 2)
+    const snap = p.getSnapshot()
+    expect(snap.queue.map((q) => q.songId)).toEqual(['s1', 's2'])
+    expect(snap.index).toBe(1) // original start (s2) preserved after the drop
+    expect(snap.currentSongId).toBe('s2')
+  })
+
+  it('playQueue with only youtube songs is a no-op (queue stays empty)', () => {
+    const p = new PlayerEngine()
+    p.playQueue([ytSong], 0)
+    const snap = p.getSnapshot()
+    expect(snap.queue).toEqual([])
+    expect(snap.currentSongId).toBeNull()
+    expect(snap.status).toBe('idle')
+  })
+
+  it('playQueue starting on a youtube entry falls back to the first playable', () => {
+    const p = new PlayerEngine()
+    p.playQueue([ytSong, SONGS[0]!, SONGS[1]!], 0)
+    const snap = p.getSnapshot()
+    expect(snap.queue.map((q) => q.songId)).toEqual(['s1', 's2'])
+    expect(snap.index).toBe(0)
+    expect(snap.currentSongId).toBe('s1')
+  })
+
+  it('enqueue filters yt-* ids and keeps playable ones', () => {
+    const p = new PlayerEngine()
+    p.playQueue([SONGS[0]!])
+    p.enqueue(['yt-dQw4w9WgXcQ'])
+    expect(p.getSnapshot().queue.map((q) => q.songId)).toEqual(['s1'])
+    p.enqueue(['yt-dQw4w9WgXcQ', 's2'])
+    expect(p.getSnapshot().queue.map((q) => q.songId)).toEqual(['s1', 's2'])
+    p.enqueue(['yt-only123456'])
+    expect(p.getSnapshot().queue).toHaveLength(2)
+  })
+})

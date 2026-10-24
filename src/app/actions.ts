@@ -14,11 +14,23 @@ import { showToast } from '@/ui/toast'
 import { createPlaylist } from '@/state/library-store'
 import { on, qs } from '@/ui/el'
 import { icon } from '@/ui/icons'
+import { youtubeVideoId } from '@/data/youtube-normalize'
 import type { Song } from '@/domain/types'
 
 export interface PlayCollectionOptions {
   shuffle?: boolean
   startSongId?: string
+}
+
+/**
+ * YouTube videos play only on the `/watch` embed page — never through the
+ * <audio> engine. Every entry point that would otherwise queue one routes
+ * here instead (policy decision: README “YouTube integration”).
+ */
+function tryWatchRoute(songId: string | null | undefined): boolean {
+  if (!songId || !youtubeVideoId(songId)) return false
+  router.navigate(`/watch/${songId}`)
+  return true
 }
 
 export async function playCollection(kind: string, id: string, opts: PlayCollectionOptions = {}): Promise<void> {
@@ -58,6 +70,9 @@ export async function playCollection(kind: string, id: string, opts: PlayCollect
     default:
       return
   }
+  // Favorites/playlists may contain YouTube ids (e.g. favorited from search);
+  // they are skipped here and guarded again inside player.playQueue.
+  songs = songs.filter((s) => s.playbackKind !== 'youtube')
   if (songs.length === 0) {
     showToast({ message: 'Nothing to play here yet.' })
     return
@@ -72,14 +87,16 @@ function collectListFromDom(row: HTMLElement): { songs: Song[]; startIndex: numb
   const ids = list
     ? [...list.querySelectorAll<HTMLElement>('.song-row[data-song-id]')].map((r) => r.getAttribute('data-song-id') ?? '')
     : [row.getAttribute('data-song-id') ?? '']
-  const startIndex = Math.max(0, ids.indexOf(row.getAttribute('data-song-id') ?? ''))
-  const songs = ids.map((id) => songById(id)).filter((s): s is Song => Boolean(s))
+  const playableIds = ids.filter((id) => !youtubeVideoId(id))
+  const startIndex = Math.max(0, playableIds.indexOf(row.getAttribute('data-song-id') ?? ''))
+  const songs = playableIds.map((id) => songById(id)).filter((s): s is Song => Boolean(s))
   return { songs, startIndex }
 }
 
 async function playRow(row: HTMLElement): Promise<void> {
   const songId = row.getAttribute('data-song-id')
   if (!songId) return
+  if (tryWatchRoute(songId)) return
   const { songs, startIndex } = collectListFromDom(row)
   if (songs.length === 0) {
     const s = await getCatalog().getSong(songId)
@@ -104,6 +121,7 @@ export function bindGlobalActions(root: HTMLElement): () => void {
     on(root, 'click', '[data-action="play-song"]', (el) => {
       const songId = el.getAttribute('data-song-id')
       if (!songId) return
+      if (tryWatchRoute(songId)) return
       const row = el.closest<HTMLElement>('.song-row') ?? root.querySelector<HTMLElement>(`.song-row[data-song-id="${CSS.escape(songId)}"]`)
       if (row) void playRow(row)
       else {
@@ -135,6 +153,7 @@ export function bindGlobalActions(root: HTMLElement): () => void {
     on(root, 'click', '[data-action="enqueue-song"]', (el) => {
       const id = el.getAttribute('data-song-id')
       if (!id) return
+      if (tryWatchRoute(id)) return
       const snap = player.getSnapshot()
       if (snap.queue.length === 0) {
         void (async () => {
@@ -170,9 +189,18 @@ function openSongMenu(anchor: HTMLElement): void {
   const row = anchor.closest<HTMLElement>('.song-row')
   const context = row?.getAttribute('data-context') ?? ''
   const fav = isFavoriteSong(songId)
+  const isYoutube = Boolean(youtubeVideoId(songId))
 
-  const items: MenuItem[] = [
-    {
+  const items: MenuItem[] = []
+  if (isYoutube) {
+    // Queue actions are replaced by the watch route: a YouTube video is never
+    // a queue item — it plays only through its visible official embed.
+    items.push({
+      label: 'Watch on YouTube',
+      onSelect: () => router.navigate(`/watch/${songId}`),
+    })
+  } else {
+    items.push({
       label: 'Play Next',
       onSelect: () => {
         const snap = player.getSnapshot()
@@ -182,8 +210,8 @@ function openSongMenu(anchor: HTMLElement): void {
           showToast({ message: 'Playing next' })
         }
       },
-    },
-    {
+    })
+    items.push({
       label: 'Add to Queue',
       onSelect: () => {
         const snap = player.getSnapshot()
@@ -193,7 +221,9 @@ function openSongMenu(anchor: HTMLElement): void {
           showToast({ message: 'Added to queue' })
         }
       },
-    },
+    })
+  }
+  items.push(
     {
       label: fav ? 'Remove from Favorites' : 'Favorite',
       onSelect: () => {
@@ -209,7 +239,7 @@ function openSongMenu(anchor: HTMLElement): void {
       label: 'Go to Album',
       onSelect: () => router.navigate(`/album/${song.albumId}`),
     },
-  ]
+  )
   if (song.artistIds[0]) {
     items.push({
       label: 'Go to Artist',

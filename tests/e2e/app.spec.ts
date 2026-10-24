@@ -152,3 +152,78 @@ test('credential-less build never contacts MusicKit and keeps the demo search pa
   const cdnScripts = await page.locator('script[src*="music.apple.com"]').count()
   expect(cdnScripts).toBe(0)
 })
+
+test('YouTube is not offered as a source until an API key is configured', async ({ page }) => {
+  await page.goto('/search?q=harbor')
+  await expect(page.locator('#search-source option[value="youtube"]')).toHaveCount(0)
+  // All-sources results never contain YouTube rows in a keyless build.
+  await expect(page.locator('.top-result, .list-rows .song-row').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.song-row[data-song-id^="yt-"]')).toHaveCount(0)
+})
+
+test('explicit ?src=youtube on a keyless build shows the setup notice and never calls googleapis', async ({ page }) => {
+  const googleRequests: string[] = []
+  page.on('request', (req) => {
+    if (req.url().includes('googleapis.com')) googleRequests.push(req.url())
+  })
+  await page.route('**googleapis.com/**', (route) => route.abort())
+
+  await page.goto('/search?q=harbor&src=youtube')
+  await expect(page.locator('#search-source')).toHaveValue('youtube')
+  await expect(page.locator('.search-notice')).toContainText('VITE_YOUTUBE_API_KEY', { timeout: 10_000 })
+  await expect(page.locator('#search-body .state-block')).toBeVisible()
+  expect(googleRequests).toEqual([])
+})
+
+test('watch with an invalid id shows the honest error state', async ({ page }) => {
+  await page.goto('/watch/not-a-video')
+  await expect(page.locator('#yt-watch-host')).toContainText('Invalid video')
+  await expect(page.locator('#watch-sub')).toHaveText('')
+})
+
+test('keyless watch falls back to the official YouTube link and never contacts googleapis', async ({ page }) => {
+  const googleRequests: string[] = []
+  page.on('request', (req) => {
+    if (req.url().includes('googleapis.com')) googleRequests.push(req.url())
+  })
+  // Deterministic offline behaviour: block the Data API (must never be hit)
+  // and both embed hosts (iframe API load fails → honest fallback).
+  await page.route('**googleapis.com/**', (route) => route.abort())
+  await page.route('**www.youtube.com/**', (route) => route.abort())
+  await page.route('**www.youtube-nocookie.com/**', (route) => route.abort())
+
+  await page.goto('/watch/yt-dQw4w9WgXcQ')
+  // Keyless: the metadata lookup is skipped entirely (zero Data API calls).
+  await expect(page.locator('#watch-sub')).toContainText('YouTube video')
+  await expect(page.locator('#yt-watch-host a', { hasText: 'Watch on YouTube' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('#watch-status')).toContainText('Player unavailable')
+  await expect(page.locator('#watch-foot')).toContainText('YouTube Terms of Service')
+  expect(googleRequests).toEqual([])
+})
+
+test('opening /watch pauses the audio engine; leaving destroys the embed', async ({ page }) => {
+  await page.route('**www.youtube.com/**', (route) => route.abort())
+  await page.route('**www.youtube-nocookie.com/**', (route) => route.abort())
+
+  await page.goto('/album/al-tidal-lines')
+  await page.locator('.song-row').first().click()
+  const bar = page.locator('.player-bar')
+  await expect(bar.locator('[data-action="toggle-play"]')).toHaveAttribute('aria-label', 'Pause')
+
+  // Client-side navigation to /watch (no yt rows exist in a keyless build).
+  await page.evaluate(() => {
+    window.history.pushState(null, '', '/watch/yt-dQw4w9WgXcQ')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
+  await expect(page).toHaveURL(/\/watch\/yt-dQw4w9WgXcQ/)
+  await expect(page.getByRole('heading', { name: 'YouTube', level: 1 })).toBeVisible()
+  // Two sound sources can never overlap: the <audio> engine is paused.
+  await expect(bar.locator('[data-action="toggle-play"]')).toHaveAttribute('aria-label', 'Play')
+  await expect(page.locator('#watch-status')).toContainText('Player unavailable', { timeout: 15_000 })
+
+  // Leaving the route destroys the embed (shell hook) — no live YouTube iframe.
+  await page.locator('.app-layout .sidebar a[data-nav-href="/browse"]').click()
+  await expect(page).toHaveURL(/\/browse$/)
+  await expect(page.locator('#yt-watch-host')).toHaveCount(0)
+  await expect(page.locator('iframe[src*="youtube"]')).toHaveCount(0)
+})

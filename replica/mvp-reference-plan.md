@@ -78,14 +78,14 @@ Legend: **✅ Implemented & tested** · **🟡 Implemented, live-verification pe
 | Audius integration | ✅ live-verified | `smoke:audius` report; unit suites |
 | Jamendo integration (search, entities, CC attribution, source badge) | 🟡 | Committed, unit-tested; live smoke **failed** (docs' test id suspended) — `replica/jamendo-smoke-report.json` is honest |
 | MusicKit search plumbing | 🟡 | Mock-tested; no credentials (tracked in `replica/musickit-milestone.md`, out of this plan's scope) |
-| YouTube discovery + visible official-embed playback | 🧩 | **Uncommitted** work: Data API v3 client, config, normalize, provider, `/watch/:id` view, embed util, shell/router wiring; **not yet wired into `availableSources()`**; no youtube unit tests yet; no key documented in `.env.example` |
+| YouTube discovery + visible official-embed playback | 🟡 | **M2 implemented:** wired into `availableSources()`/`providerInfos()` when `VITE_YOUTUBE_API_KEY` is set; dedicated `?src=youtube` view + `/watch/:id` (deliberately **never aggregated into `All sources`** — conservative reading of policy III.E.2/III.C.5, README "Dedicated view, never blended"); keyless contracts asserted in `catalog-facade.test.ts` + 5 new e2e tests; new `youtube-{config,client,normalize,provider,embed}.test.ts` suites; `.env.example` + Pages vars document the key. Committed as `feat: add compliant YouTube watch experience` after a full local review. Live with-key search unverified (no key in this environment); keyless playback/watch contracts verified offline. |
 | Explicit badge, source badge, CC licence line | ✅ | `media.ts`, `song.ts`, tests |
 | Radio (stations) | ✅ (demo stations) | `views/radio.ts` over demo catalogue |
-| E2E suite | ✅ 12 tests | `tests/e2e/app.spec.ts`; **not run in CI** (workflow: lint→typecheck→test→build only) |
+| E2E suite | ✅ 17 tests | `tests/e2e/app.spec.ts` (12 original + 5 YouTube/keyless-watch); **run in CI since M1** |
 | Lyrics for remote (Audius/Jamendo) tracks | ❌ | No lyrics provider; renderer ready |
 | OS media controls (lock screen, media keys, Bluetooth) | ❌ | No `navigator.mediaSession` usage anywhere |
 | Listening history view + listening stats | ❌ | Data exists (`recentlyPlayed`, capped 40) but only as an implicit library section; no view, no stats (nuclear ships both) |
-| E2E as a merge/deploy gate in CI | ❌ | Pages workflow omits `npm run test:e2e` |
+| E2E as a merge/deploy gate in CI | ✅ | Pages workflow runs `npm run test:e2e` before the deploy build (M1, run 40087077118 green; a deliberately failing E2E proven to block deploy) |
 | Scrobbling (Last.fm et al.) | ⏸ | Needs external API key + account — credentials burden |
 | UI internationalization (translations) | ⏸ | English-only UI; content-language filtering ≠ UI locale; string-extraction pass is a large lift |
 | Playlist import/export (+ smart playlists) | ⏸ | Natural follow-on once M5 stats/history data exists (nuclear/koel pattern) |
@@ -125,6 +125,21 @@ Each milestone is designed as **one small, independently testable OpenCode task*
 - **Acceptance criteria:** (a) without key: selector omits YouTube, shared `src=jamendo`-style URL for youtube shows the unconfigured notice, zero requests, `src=youtube` never appears in `availableSources()`; (b) with key: search shows a YouTube group with source badge, rows are `yt-*` ids, clicking navigates to `/watch/:id` rendering the official iframe, audio engine paused, Back/leave destroys the embed; (c) Audius/demo/Jamendo paths byte-for-byte unaffected (existing 240 unit + 12 e2e green); (d) `playbackKind: 'youtube'` never enters the `<audio>` queue path.
 - **Tests:** *Unit* — client: request params (`part=snippet`, `type=video`, `videoEmbeddable=true`, `maxResults=10`, `relevanceLanguage` when language selected, `key` param), quota/forbidden/500 error mapping, TTL cache; config: key present/absent/`VITE_YOUTUBE_ENABLED=0`, `describeYoutubeConfig()` message contains `VITE_YOUTUBE_API_KEY`; normalize: `yt-<id>` ↔ videoId round-trip, `youtubeWatchUrl`, `playbackKind:'youtube'`, no-audio-URL guarantees; provider: entity routing + unsupported surfaces (`getPlaylist`/`getGenre` → null, zero fetches when unconfigured); facade: youtube group ordering/flatten, unconfigured isolation (zero fetch), language gating (`other` hides youtube). *E2E* — credential-less build: youtube absent from source selector (new assertions); mocked `page.route` for `www.googleapis.com/youtube/v3/*`: watch route renders embed shell + Back button + engine paused, and existing playback tests unchanged.
 - **Definition of done:** all five gates green; two clean commits (land existing work, then wiring+tests) following the established Jamendo-commit discipline; README + `.env.example` document the key; live with-key verification performed **or** explicitly recorded as not verified (quota/key availability may block it — honesty over claims).
+
+> **Status (2026-10-24): implemented, gates green, committed as
+> `feat: add compliant YouTube watch experience`.**
+> lint · typecheck · unit **307/307** · build · e2e **17/17** all pass locally.
+> Deviations from the text above: (1) the *commit-first* sequencing was
+> replaced by review-first — the slice was finished and gated in a
+> review-ready working tree, then committed as a single commit after the
+> reviewer's gate re-run (no history rewritten); (2) YouTube is deliberately excluded from
+> `All sources` aggregation (conservative reading of policy III.E.2/III.C.5 —
+> README "Dedicated view, never blended"); (3) the embed wrapper was extended
+> with ready-gating, player state/error events, and made-for-kids →
+> privacy-enhanced (nocookie) embedding per III.E.4.j. Acceptance (a) and
+> (d) are fully proven (keyless contracts + engine queue-guard tests); live
+> with-key acceptance (b) remains **unverified — no API key in this
+> environment** (recorded in README/Limitations rather than claimed).
 
 ### M3 — Synced lyrics for remote tracks (LRCLIB, fallback-first)
 

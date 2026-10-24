@@ -123,7 +123,7 @@ export type CatalogSource = 'demo' | 'audius' | 'jamendo' | 'youtube' | 'musicki
 export type SourceFilter = CatalogSource | 'all'
 
 /** Playback transport for a song (audio engine vs. visible video embed). */
-export type PlaybackKind = 'audio'
+export type PlaybackKind = 'audio' | 'youtube'
 
 /** Per-source search outcome; `empty` renders as a hidden group. */
 export type SearchGroupStatus = 'ok' | 'empty' | 'error' | 'unconfigured' | 'disabled'
@@ -189,7 +189,7 @@ export interface BrowseData {
 
 /** Provider capability flags surfaced in Settings. */
 export interface CatalogProviderInfo {
-  id: 'demo' | 'musickit' | 'audius' | 'jamendo'
+  id: 'demo' | 'musickit' | 'audius' | 'jamendo' | 'youtube'
   name: string
   description: string
   configured: boolean

@@ -22,7 +22,9 @@ import { renderArtist } from '@/views/artist'
 import { renderPlaylist } from '@/views/playlist'
 import { renderSong } from '@/views/song'
 import { renderGenre } from '@/views/genre'
+import { renderWatch } from '@/views/watch'
 import { renderNotFound } from '@/views/not-found'
+import { destroyYouTubeEmbed } from '@/ui/youtube-embed'
 import { showToast } from '@/ui/toast'
 
 const NAV: Array<{ href: string; label: string; icon: IconName }> = [
@@ -223,6 +225,7 @@ export function startShell(root: HTMLElement): Shell {
       return
     }
     nowPlaying.close()
+    destroyYouTubeEmbed()
     const token = ++renderToken
     void (async () => {
       switch (route.name) {
@@ -260,6 +263,10 @@ export function startShell(root: HTMLElement): Shell {
           break
         case 'genre':
           await renderGenre(host, route.id)
+          break
+        case 'watch':
+          sharedRouter.setRouteTitle('YouTube')
+          await renderWatch(host, route.id)
           break
         case 'not-found':
           sharedRouter.setRouteTitle('Not Found')

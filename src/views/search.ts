@@ -24,9 +24,15 @@ export interface SearchFilterParams {
 export async function renderSearch(root: HTMLElement, initialQuery: string, filters: SearchFilterParams = {}): Promise<void> {
   const available = availableSources()
 
-  /** A source this build cannot search clamps back to `all`. */
+  /**
+   * A source this build cannot search clamps back to `all`.
+   * Exception: an explicit `src=youtube` is preserved even before the API key
+   * is configured, so the dedicated YouTube view can render its honest setup
+   * notice (naming `VITE_YOUTUBE_API_KEY`) instead of silently falling back.
+   */
   const clampSource = (raw: string | null | undefined): SourceFilter => {
     const norm = normalizeSourceFilter(raw)
+    if (norm === 'youtube') return 'youtube'
     return norm === 'all' || available.includes(norm) ? norm : 'all'
   }
 
@@ -44,7 +50,10 @@ export async function renderSearch(root: HTMLElement, initialQuery: string, filt
     (l) =>
       `<option value="${escapeHtml(l.code)}"${l.code === currentLanguage ? ' selected' : ''}>${escapeHtml(l.label)}</option>`,
   ).join('')
-  const sourceOptionsHtml = sourceFilterOptions(available)
+  const sourceOptions = sourceFilterOptions(available)
+  // Keep the YouTube option selectable while it is the active (keyless) view.
+  if (currentSource === 'youtube' && !sourceOptions.includes('youtube')) sourceOptions.push('youtube')
+  const sourceOptionsHtml = sourceOptions
     .map(
       (s) =>
         `<option value="${escapeHtml(s)}"${s === currentSource ? ' selected' : ''}>${escapeHtml(sourceLabel(s))}</option>`,
