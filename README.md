@@ -29,6 +29,7 @@ Other scripts:
 | `npm run capture:reference` | Screenshot the public Apple Music site for reference |
 | `npm run capture:clone` | Screenshot this app + smoke-test playback |
 | `npm run smoke:audius` | Live browser check: Audius search + real playback (needs network) |
+| `npm run smoke:jamendo` | Live browser check: Jamendo search + real playback (needs `VITE_JAMENDO_CLIENT_ID`, network) |
 | `npm run smoke:musickit` | Live MusicKit search harness (exit 2 until configured) |
 
 ## What's inside
@@ -39,13 +40,15 @@ Other scripts:
   autoplay-block handling, session restore (paused) across reloads.
 - **Routing** — History-API SPA router, framework-free; the player survives
   navigation because the audio element lives in the shell, not the views.
-- **Catalogue** (`src/data/`) — two layers behind one facade: a **free live
+- **Catalogue** (`src/data/`) — several layers behind one facade: a **free live
   catalogue from [Audius](https://audius.co)** (search, charts, artists,
-  playlists, artist albums, real streamed audio) enabled by default, and a
-  fictional demo catalogue (10 artists, 10 albums, 32 songs, playlists,
+  playlists, artist albums, real streamed audio) enabled by default, an
+  optional **[Jamendo](https://www.jamendo.com)** Creative-Commons catalogue
+  (search + streaming once a client id is set), and a fictional demo
+  catalogue (10 artists, 10 albums, 32 songs, playlists,
   stations, genres) with streaming audio from
   [SoundHelix](https://www.soundhelix.com) and deterministic generated SVG
-  artwork that always acts as the fallback — an Audius outage can never break
+  artwork that always acts as the fallback — a provider outage can never break
   the app (see below).
 - **Library** — favorites (songs + albums), user playlists (create/rename/delete,
   add/remove/reorder tracks), recently played — all persisted in `localStorage`
@@ -90,6 +93,56 @@ a free, public API with no paid dependency:
   fetches; the e2e suite builds with `VITE_AUDIUS_ENABLED=0` so it never
   depends on the live API. Live behaviour is verified separately with
   `npm run smoke:audius`.
+
+## Jamendo (free Creative Commons catalogue)
+
+Sonora can also search and stream **[Jamendo](https://www.jamendo.com)** — a free
+catalogue of artist-uploaded Creative Commons music — alongside Audius and the
+demo catalogue.
+
+- **Getting a client id (free):** sign up at
+  [devportal.jamendo.com](https://devportal.jamendo.com) → create an
+  *application* (the default read-only plan fits this app) → copy its
+  **client id**. Every read call sends it as Jamendo's documented `client_id`
+  GET parameter. It is a **public build-time value** (Vite embeds every
+  `VITE_*` variable in the bundle, and Jamendo's own docs publish a test id
+  for read calls) — not a secret. Never put OAuth access tokens or a
+  `client_secret` in client config: this app uses only the unauthenticated
+  read API and has no OAuth flow.
+- **Local setup:** create a `.env` (gitignored) with
+  `VITE_JAMENDO_CLIENT_ID=<your id>` — or `VITE_JAMENDO_ENABLED=0` to keep
+  Jamendo off entirely. `.env.example` documents both.
+- **Production setup:** repo Actions *variables* (not secrets):
+  `gh variable set VITE_JAMENDO_CLIENT_ID --body "<your id>"` (optional
+  `VITE_JAMENDO_ENABLED`); the Pages workflow passes them into the build.
+- **Language filter:** with a specific language selected, Jamendo queries
+  carry Jamendo's documented 2-letter `lang` parameter (server-side
+  filtering, e.g. `zh-Hans`/`zh-Hant` → `zh`); under `All languages` no
+  `lang` parameter is sent at all. Each track's stated lyrics language
+  (`musicinfo.lang`) is kept as `Song.language` when present — but tracks
+  without one stay eligible rather than being dropped on a guess, because
+  Jamendo's own server-side filter, not our metadata, decides. A language
+  Jamendo cannot represent (`Other languages`) hides the source with a named
+  notice.
+- **Playback & licensing:** results stream Jamendo's documented `audio` URL
+  through the app's existing `<audio>` engine (seek, queue, pause, shuffle
+  unchanged). Downloads are never offered. Every Jamendo song keeps its
+  Creative Commons licence (`license_ccurl` → a "CC …" link on the song
+  page) plus the source attribution — the artist byline is the required
+  credit. Licences vary per track (BY / BY-NC / BY-NC-ND / BY-SA …); this
+  app only plays the stream and links to the licence page, it never
+  redistributes files.
+- **Unsupported (documented, never faked):** editorial home/browse cards,
+  stations, genre pages, playlists, lyrics, ratings.
+- **Without a client id:** Jamendo simply is not offered — the source
+  selector omits it, a shared URL with `src=jamendo` shows an honest
+  "unconfigured" notice naming `VITE_JAMENDO_CLIENT_ID`, and **zero
+  requests** are made. Audius and the demo catalogue behave exactly as
+  before.
+- **Verification:** unit tests cover config, client, normalisation,
+  provider routing and the facade grouping with injected fetches;
+  `npm run smoke:jamendo` is the live browser check (search → row → real
+  playback → elapsed time advancing).
 
 ## Optional Apple Music (MusicKit) provider
 
@@ -141,30 +194,37 @@ How filtering stays honest:
     content is English.
   - **Audius** — the Audius API has **no language parameter**, so Audius is
     searched only under `All languages`; it never pretends to have filtered.
+  - **Jamendo** (offered when a client id is configured) — can filter: its
+    queries carry Jamendo's documented 2-letter `lang` parameter
+    (`zh-Hans`/`zh-Hant` → `zh`), applied by Jamendo's servers.
   - **Apple Music (MusicKit)** — no language filter is implemented here, so it
     behaves the same way: `All languages` only.
-  - **Jamendo / YouTube** — not offered. Their providers exist in the tree but
-    are not wired into this build's catalogue facade, so they never appear as
-    working sources and never receive a query.
+  - **YouTube** — not offered. Its provider exists in the tree but is not
+    wired into this build's catalogue facade, so it never appears as a
+    working source and never receives a query.
 - **Hidden sources are named.** When a language hides a source you could
   otherwise search, the results page says which ones ("Hidden for French: Sonora
   Demo."); if nothing can answer the query, the empty state explains why instead
   of showing a silent blank.
 - **`Other languages` is a UI-only bucket.** No source can filter by it yet
-  (it carries no ISO 639-1 code), so selecting it hides every source and says so
-  — no fake matches.
-- **Tracks without language metadata are never excluded.** No demo/Audius track
-  carries a language claim today, so per-track filtering is a safety net
-  (`Song.language` + `songMatchesLanguage()`) that stays inert until a provider
-  reports a language; unknown-language tracks stay visible rather than being
-  dropped on a guess.
+  (it carries no ISO 639-1 code), so selecting it hides every source —
+  Jamendo included — and says so — no fake matches.
+- **Tracks without language metadata are never excluded.** Demo/Audius tracks
+  carry no language claim, so per-track filtering is a safety net
+  (`Song.language` + `songMatchesLanguage()`) that stays inert for them;
+  unknown-language tracks stay visible rather than being dropped on a guess.
+  Jamendo tracks state their lyrics language when the API's `musicinfo`
+  provides it, but Jamendo results are narrowed by the server-side `lang`
+  filter — the client never second-guesses that with its own exclusions.
 - **Failures are per source.** Each source is queried in isolation: an Audius
-  outage marks that group as an error with a notice above the results while the
-  demo results keep working (the same fallback the flat search always had), and
-  picking one specific source never silently falls back to another.
+  or Jamendo outage marks that group as an error with a notice above the
+  results while the other sources' results keep working (the same fallback
+  the flat search always had), and picking one specific source never
+  silently falls back to another.
 - **The source selector lists only what this build can search** — `All
-  sources`, Audius (when enabled), Apple Music (when configured), Sonora Demo.
-  A stale URL pointing at an unavailable source clamps back to `All sources`.
+  sources`, Audius (when enabled), Jamendo (when a client id is configured),
+  Apple Music (when configured), Sonora Demo. A stale URL pointing at an
+  unavailable source clamps back to `All sources`.
 
 ## Layout
 
@@ -172,6 +232,7 @@ How filtering stays honest:
 src/
   app/        shell (sidebar, mobile chrome, keyboard), router, global actions
   data/       demo catalogue, provider facade, Audius provider (free, default-on),
+              Jamendo provider (free CC catalogue, needs a client id),
               optional MusicKit provider, remote entity registry
   domain/     shared types + CatalogProvider interface
   engine/     PlayerEngine (singleton `player`)
@@ -181,7 +242,7 @@ src/
   views/      home, browse, radio, search, library, album, artist, playlist,
               song, genre, now-playing, not-found
 scripts/      capture-reference.mjs, capture-clone.mjs, musickit-smoke.mjs,
-              audius-smoke.mjs
+              audius-smoke.mjs, jamendo-smoke.mjs
 tests/unit    Vitest suites
 tests/e2e     Playwright suites
 replica/      recon notes, feature matrix, screenshots, milestone plan
@@ -192,13 +253,20 @@ replica/      recon notes, feature matrix, screenshots, milestone plan
 - The demo fallback catalogue is fictional; its audio is SoundHelix demo
   MP3s (not the Apple catalogue, not licensed music). Audius content is
   real, user-uploaded music streamed from Audius's CDN; availability and
-  catalogue depend on the live public API.
-- With Audius enabled the app needs network for remote results; offline or
-  during an Audius outage everything falls back to the demo catalogue.
+  catalogue depend on the live public API. Jamendo content is real
+  Creative-Commons music streamed from Jamendo's storage CDN; it appears
+  only when a client id is configured, and licences vary per track (shown
+  on each song page — downloads are never offered by this app).
+- With Audius or Jamendo enabled the app needs network for remote results;
+  offline or during a provider outage everything falls back to the demo
+  catalogue.
 - No accounts or cross-device sync — the library is local to your browser.
 - Lyrics exist for five demo tracks; timings are approximations. Audius
-  tracks have no lyrics in this app.
+  tracks have no lyrics in this app (and Jamendo lyrics are out of scope:
+  only the stated language metadata is read).
 - MusicKit streaming is out of scope (see above).
-- Search language filtering is capability-based: Audius and MusicKit accept no
-  language parameter, so selecting a language narrows the search to sources that
-  can honour it (today: the English-only demo catalogue, under `en`).
+- Search language filtering is capability-based: Audius and MusicKit accept
+  no language parameter, so selecting a language narrows the search to
+  sources that can honour it (today: the English-only demo catalogue under
+  `en`, and Jamendo — when configured — under any language Jamendo's `lang`
+  parameter supports, with `Other languages` supported by none).

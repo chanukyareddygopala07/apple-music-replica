@@ -7,8 +7,13 @@
  *    disable). Primary external catalogue: search, charts, artists,
  *    playlists, artist albums, real streaming URLs. Entity ids are prefix-
  *    routed: `au-*` → Audius, everything else → demo.
- * 2. MusicKit (optional, two-key gate) — search only when configured.
- * 3. Demo catalogue — always present; the fallback whenever a remote
+ * 2. Jamendo (free Creative Commons catalogue) — offered once a public
+ *    client id is set (VITE_JAMENDO_CLIENT_ID from devportal.jamendo.com).
+ *    Search + track/album/artist pages + direct mp3 streaming + CC licence
+ *    attribution; ids are prefix-routed `jm-*`. Without a client id the
+ *    source is never offered and no request is made.
+ * 3. MusicKit (optional, two-key gate) — search only when configured.
+ * 4. Demo catalogue — always present; the fallback whenever a remote
  *    provider fails (an Audius outage can never break the app).
  *
  * Home/browse: the demo feed is the base; Audius songs/playlists overlay
@@ -41,16 +46,20 @@ import type {
 import { DemoCatalogProvider } from '@/data/demo-provider'
 import { MusicKitProvider, isMusicKitConfigured } from '@/data/musickit-provider'
 import { AudiusProvider, isAudiusConfigured } from '@/data/audius-provider'
+import { JamendoProvider, isJamendoConfigured } from '@/data/jamendo-provider'
 import { describeAudiusConfig } from '@/data/audius-config'
+import { describeJamendoConfig, readJamendoConfig } from '@/data/jamendo-config'
 import { describeMusicKitConfig, readMusicKitConfig } from '@/data/musickit-token'
 import { ALL_LANGUAGES, normalizeLanguage, songMatchesLanguage } from '@/data/languages'
 import { SOURCE_ORDER, normalizeSourceFilter, sourceName, sourceSupportsLanguage } from '@/data/sources'
 
 const demo = new DemoCatalogProvider()
 const audius = new AudiusProvider()
+const jamendo = new JamendoProvider()
 const musickit = new MusicKitProvider()
 
 const isAu = (id: string): boolean => id.startsWith('au-')
+const isJm = (id: string): boolean => id.startsWith('jm-')
 
 export const catalog: CatalogProvider = {
   info: demo.info,
@@ -106,6 +115,13 @@ export const catalog: CatalogProvider = {
         return null
       }
     }
+    if (isJm(id)) {
+      try {
+        return await jamendo.getSong(id)
+      } catch {
+        return null
+      }
+    }
     return demo.getSong(id)
   },
 
@@ -113,6 +129,13 @@ export const catalog: CatalogProvider = {
     if (isAu(id)) {
       try {
         return await audius.getAlbum(id)
+      } catch {
+        return null
+      }
+    }
+    if (isJm(id)) {
+      try {
+        return await jamendo.getAlbum(id)
       } catch {
         return null
       }
@@ -128,6 +151,13 @@ export const catalog: CatalogProvider = {
         return null
       }
     }
+    if (isJm(id)) {
+      try {
+        return await jamendo.getArtist(id)
+      } catch {
+        return null
+      }
+    }
     return demo.getArtist(id)
   },
 
@@ -139,10 +169,14 @@ export const catalog: CatalogProvider = {
         return null
       }
     }
+    // Jamendo read surface has no playlists — never invent one for jm-* ids.
+    if (isJm(id)) return null
     return demo.getPlaylist(id)
   },
 
   getGenre(id: string): Promise<Genre | null> {
+    // Jamendo exposes no genre pages (documented) — jm-* ids are not genres.
+    if (isJm(id)) return Promise.resolve(null)
     return demo.getGenre(id)
   },
 
@@ -150,6 +184,13 @@ export const catalog: CatalogProvider = {
     if (isAu(albumId)) {
       try {
         return await audius.getSongsByAlbum(albumId)
+      } catch {
+        return []
+      }
+    }
+    if (isJm(albumId)) {
+      try {
+        return await jamendo.getSongsByAlbum(albumId)
       } catch {
         return []
       }
@@ -165,6 +206,13 @@ export const catalog: CatalogProvider = {
         return []
       }
     }
+    if (isJm(artistId)) {
+      try {
+        return await jamendo.getAlbumsByArtist(artistId)
+      } catch {
+        return []
+      }
+    }
     return demo.getAlbumsByArtist(artistId)
   },
 
@@ -176,12 +224,19 @@ export const catalog: CatalogProvider = {
         return []
       }
     }
+    if (isJm(artistId)) {
+      try {
+        return await jamendo.getTopSongsByArtist(artistId)
+      } catch {
+        return []
+      }
+    }
     return demo.getTopSongsByArtist(artistId)
   },
 }
 
 export function providerInfos(): CatalogProviderInfo[] {
-  return [demo.info, audius.info, musickit.info]
+  return [demo.info, audius.info, jamendo.info, musickit.info]
 }
 
 /** Empty slice for a source that produced nothing (or never ran). */
@@ -191,12 +246,13 @@ function emptyResults(query: string): SearchResults {
 
 /**
  * Sources this build can actually search right now, in canonical order.
- * Jamendo/YouTube providers exist in the tree but are not wired into this
- * facade, so they are never offered as working sources.
+ * YouTube exists in the tree but is not wired into this facade, so it is
+ * never offered; Jamendo is offered only when configured (public client id).
  */
 export function availableSources(): CatalogSource[] {
   const live = new Set<CatalogSource>(['demo'])
   if (isAudiusConfigured()) live.add('audius')
+  if (isJamendoConfigured()) live.add('jamendo')
   if (isMusicKitConfigured()) live.add('musickit')
   return SOURCE_ORDER.filter((s) => live.has(s))
 }
@@ -210,15 +266,25 @@ function filterByLanguage(results: SearchResults, language: string): SearchResul
 async function runSource(source: CatalogSource, query: string, language: string): Promise<SearchGroup> {
   const name = sourceName(source)
   try {
-    const raw =
-      source === 'demo'
-        ? await demo.search(query)
-        : source === 'audius'
-          ? await audius.search(query)
-          : await musickit.search(query)
-    const results = filterByLanguage(raw, language)
+    let raw: SearchResults
+    let cursor: string | undefined
+    if (source === 'demo') {
+      raw = await demo.search(query)
+    } else if (source === 'audius') {
+      raw = await audius.search(query)
+    } else if (source === 'jamendo') {
+      // Jamendo filters by the documented `lang` parameter server-side; its
+      // musicinfo language is ISO-only, so re-checking it client-side would
+      // false-exclude under zh-Hans/zh-Hant — the safety net is skipped here.
+      const page = await jamendo.searchPage(query, { language })
+      raw = page.results
+      cursor = page.cursor
+    } else {
+      raw = await musickit.search(query)
+    }
+    const results = source === 'jamendo' ? raw : filterByLanguage(raw, language)
     const total = results.songs.length + results.albums.length + results.artists.length + results.playlists.length
-    return { source, name, status: total > 0 ? 'ok' : 'empty', results }
+    return { source, name, status: total > 0 ? 'ok' : 'empty', results, cursor }
   } catch (err) {
     const detail = err instanceof Error && err.message ? `: ${err.message}` : ''
     return { source, name, status: 'error', message: `Search failed${detail}`, results: emptyResults(query) }
@@ -230,6 +296,16 @@ function unavailableGroup(source: CatalogSource, query: string): SearchGroup {
   const name = sourceName(source)
   if (source === 'audius') {
     return { source, name, status: 'disabled', message: describeAudiusConfig(), results: emptyResults(query) }
+  }
+  if (source === 'jamendo') {
+    const config = readJamendoConfig()
+    return {
+      source,
+      name,
+      status: config.enabled ? 'unconfigured' : 'disabled',
+      message: describeJamendoConfig(config),
+      results: emptyResults(query),
+    }
   }
   if (source === 'musickit') {
     return {
@@ -287,16 +363,30 @@ export function flattenGrouped(grouped: GroupedSearchResults): SearchResults {
     return g && (g.status === 'ok' || g.status === 'empty') ? g.results : undefined
   }
   const remote = group('audius')
+  const jamendoGroup = group('jamendo')
   const musicKit = group('musickit')
   const local = group('demo') ?? emptyResults(grouped.query)
 
-  if (!remote && !musicKit) return local
-  // Remote hits come ahead of local matches (MusicKit ordering preserved).
+  // A remote group that merely produced zero hits still counts: demo only
+  // stands alone when no remote source answered at all (or was even asked).
+  if (!remote && !jamendoGroup && !musicKit) return local
+  // Remote hits come ahead of local matches (SOURCE_ORDER: audius, jamendo,
+  // musickit, demo) — MusicKit ordering preserved for its own entries.
   return {
     query: grouped.query,
-    songs: [...(remote?.songs ?? []), ...(musicKit?.songs ?? []), ...local.songs].slice(0, 30),
-    albums: [...(musicKit?.albums ?? []), ...local.albums].slice(0, 20),
-    artists: [...(remote?.artists ?? []), ...(musicKit?.artists ?? []), ...local.artists].slice(0, 12),
+    songs: [
+      ...(remote?.songs ?? []),
+      ...(jamendoGroup?.songs ?? []),
+      ...(musicKit?.songs ?? []),
+      ...local.songs,
+    ].slice(0, 30),
+    albums: [...(jamendoGroup?.albums ?? []), ...(musicKit?.albums ?? []), ...local.albums].slice(0, 20),
+    artists: [
+      ...(remote?.artists ?? []),
+      ...(jamendoGroup?.artists ?? []),
+      ...(musicKit?.artists ?? []),
+      ...local.artists,
+    ].slice(0, 12),
     playlists: [...(remote?.playlists ?? []), ...local.playlists].slice(0, 12),
   }
 }

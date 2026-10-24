@@ -2,10 +2,18 @@
 
 import type { Album, Playlist, Song } from '@/domain/types'
 import { artistNamesFor, getCatalog } from '@/data/catalog-helpers'
+import { sourceName } from '@/data/sources'
 import { escapeHtml, artImg } from '@/ui/el'
 import { icon, type IconName } from '@/ui/icons'
 import { formatTime } from '@/utils/format'
 import { heroColors } from '@/utils/artwork'
+
+/** Source pill for provider-sourced rows — demo rows carry no `source`. */
+function sourceBadgeHtml(song: Song): string {
+  if (!song.source || song.source === 'demo') return ''
+  const name = sourceName(song.source)
+  return `<span class="source-badge" title="Source: ${escapeHtml(name)}">${escapeHtml(name)}</span>`
+}
 
 export function songRowHtml(song: Song, opts?: { index?: number; showArt?: boolean; context?: string; queueItemId?: string; draggable?: boolean }): string {
   const sub = artistNamesFor(song)
@@ -21,7 +29,7 @@ export function songRowHtml(song: Song, opts?: { index?: number; showArt?: boole
       ${opts?.draggable ? 'draggable="true"' : ''}>
       ${numCell}
       <div class="row-main">
-        <div class="row-title">${escapeHtml(song.title)}${song.explicit ? '<span class="explicit-badge" title="Explicit" aria-label="Explicit">E</span>' : ''}</div>
+        <div class="row-title">${escapeHtml(song.title)}${song.explicit ? '<span class="explicit-badge" title="Explicit" aria-label="Explicit">E</span>' : ''}${sourceBadgeHtml(song)}</div>
         <div class="row-sub">${escapeHtml(sub)}</div>
       </div>
       <span class="row-duration mono-num">${formatTime(song.durationMs)}</span>

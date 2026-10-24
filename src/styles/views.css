@@ -59,6 +59,19 @@
   color: var(--hero-text-secondary);
 }
 
+/* Provider attribution + licence line (CC-sourced tracks, e.g. Jamendo). */
+.detail-hero .hero-license {
+  margin-top: var(--space-2);
+  font-size: var(--text-footnote);
+  font-weight: 500;
+  color: var(--hero-text-secondary);
+}
+
+.detail-hero .hero-license a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .detail-hero .hero-desc {
   margin-top: var(--space-4);
   max-width: 640px;

@@ -54,6 +54,16 @@ export interface Song {
   /** Remote artwork URL when the provider supplies one (Audius); otherwise
    * UI falls back to generated art from `album-{albumId}`. */
   artworkUrl?: string
+  /** Catalogue source that produced this song (source badges + routing). */
+  source?: CatalogSource
+  /** How the song plays: through the <audio> engine (default) or the
+   * visible official YouTube embed. YouTube results never play silently. */
+  playbackKind?: PlaybackKind
+  /** Canonical page on the source site (e.g. the YouTube watch URL). */
+  externalUrl?: string
+  /** Attribution label + link for CC-sourced results (Jamendo). */
+  attribution?: string
+  attributionUrl?: string
   /** App-level language code of the track (`en`, `zh-Hans`, …) when the
    * provider states one. Absent = unknown: the track is eligible under every
    * language filter (it cannot honestly be excluded). */
@@ -111,6 +121,9 @@ export type CatalogSource = 'demo' | 'audius' | 'jamendo' | 'youtube' | 'musicki
 
 /** The `source` selector value: a source, or `all` for every source. */
 export type SourceFilter = CatalogSource | 'all'
+
+/** Playback transport for a song (audio engine vs. visible video embed). */
+export type PlaybackKind = 'audio'
 
 /** Per-source search outcome; `empty` renders as a hidden group. */
 export type SearchGroupStatus = 'ok' | 'empty' | 'error' | 'unconfigured' | 'disabled'
@@ -176,7 +189,7 @@ export interface BrowseData {
 
 /** Provider capability flags surfaced in Settings. */
 export interface CatalogProviderInfo {
-  id: 'demo' | 'musickit' | 'audius'
+  id: 'demo' | 'musickit' | 'audius' | 'jamendo'
   name: string
   description: string
   configured: boolean

@@ -15,7 +15,8 @@
     "capture:reference": "node scripts/capture-reference.mjs",
     "capture:clone": "node scripts/capture-clone.mjs",
     "smoke:musickit": "node scripts/musickit-smoke.mjs",
-    "smoke:audius": "node scripts/audius-smoke.mjs"
+    "smoke:audius": "node scripts/audius-smoke.mjs",
+    "smoke:jamendo": "node scripts/jamendo-smoke.mjs"
   },
   "dependencies": {},
   "devDependencies": {

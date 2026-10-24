@@ -2,11 +2,40 @@
 
 import type { Song } from '@/domain/types'
 import { getCatalog, artistNamesFor, albumArtist } from '@/data/catalog-helpers'
-import { artistAnchorHtml, attachArtworkFallback } from '@/ui/el'
+import { sourceName } from '@/data/sources'
+import { artistAnchorHtml, attachArtworkFallback, escapeHtml } from '@/ui/el'
 import { icon } from '@/ui/icons'
 import { albumCardHtml, carouselWrapHtml, emptyStateHtml, sectionHeaderHtml, songRowHtml, applyHeroTheme } from '@/ui/media'
 import { formatTime } from '@/utils/format'
 import { isFavoriteSong } from '@/state/library-store'
+
+/** Licence name derived from the licence URL itself (never invented). */
+function licenceLabel(url: string): string {
+  const match = /creativecommons\.org\/licenses\/([^/?#]+)/i.exec(url)
+  return match ? `CC ${match[1]!.toUpperCase()}` : 'Licence'
+}
+
+/**
+ * Attribution line for provider-sourced tracks: source + licence link +
+ * canonical page. Jamendo CC licences require crediting the artist, which
+ * the byline directly above already does.
+ */
+function attributionHtml(song: Song): string {
+  const parts: string[] = []
+  if (song.attribution) parts.push(escapeHtml(song.attribution))
+  if (song.attributionUrl) {
+    parts.push(
+      `<a href="${escapeHtml(song.attributionUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(licenceLabel(song.attributionUrl))}</a>`,
+    )
+  }
+  if (song.externalUrl) {
+    const label = song.source ? `View on ${sourceName(song.source)}` : 'View source'
+    parts.push(
+      `<a href="${escapeHtml(song.externalUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`,
+    )
+  }
+  return parts.join(' · ')
+}
 
 export async function renderSong(root: HTMLElement, id: string): Promise<void> {
   root.innerHTML = `<div class="page-title" style="opacity:.4">Loading…</div>`
@@ -21,6 +50,7 @@ export async function renderSong(root: HTMLElement, id: string): Promise<void> {
   const artist = artistId ? await catalog.getArtist(artistId) : null
   const relatedAlbums = artist ? (await catalog.getAlbumsByArtist(artist.id)).filter((a) => a.id !== song.albumId).slice(0, 10) : []
   const fav = isFavoriteSong(song.id)
+  const attribution = attributionHtml(song)
 
   root.classList.add('theme-page')
   applyHeroTheme(root, album?.artworkSeed ?? song.id)
@@ -36,6 +66,7 @@ export async function renderSong(root: HTMLElement, id: string): Promise<void> {
           <a href="/album/${song.albumId}" data-nav style="text-decoration:underline">${(album?.title ?? 'Unknown album').replaceAll('<', '&lt;')}</a>
           · ${formatTime(song.durationMs)}
         </div>
+        ${attribution ? `<div class="hero-license">${attribution}</div>` : ''}
         <div class="hero-actions">
           <button type="button" class="btn btn-play-hero" data-action="play-song" data-song-id="${song.id}">${icon('play')} Play</button>
           <button type="button" class="btn btn-secondary" data-action="enqueue-song" data-song-id="${song.id}">${icon('queue')} Queue</button>

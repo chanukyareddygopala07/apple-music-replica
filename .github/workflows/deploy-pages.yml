@@ -35,6 +35,11 @@ jobs:
           # default-on behaviour. Set VITE_AUDIUS_ENABLED=0 to ship demo-only.
           VITE_AUDIUS_ENABLED: ${{ vars.VITE_AUDIUS_ENABLED }}
           VITE_AUDIUS_API_KEY: ${{ vars.VITE_AUDIUS_API_KEY }}
+          # Jamendo (free CC provider) — optional repo Actions *variables*
+          # (not secrets). Empty VITE_JAMENDO_CLIENT_ID = the Jamendo source
+          # is simply not offered in production (zero requests, app unchanged).
+          VITE_JAMENDO_ENABLED: ${{ vars.VITE_JAMENDO_ENABLED }}
+          VITE_JAMENDO_CLIENT_ID: ${{ vars.VITE_JAMENDO_CLIENT_ID }}
           # Public MusicKit config (repo Actions *variables*, not secrets).
           # Empty until `gh variable set ...` — empty gate = demo unchanged.
           VITE_MUSICKIT_ENABLED: ${{ vars.VITE_MUSICKIT_ENABLED }}

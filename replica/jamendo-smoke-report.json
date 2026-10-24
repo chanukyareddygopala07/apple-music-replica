@@ -1,0 +1,31 @@
+{
+  "ranAt": "2026-10-24T09:48:20.998Z",
+  "mode": "local",
+  "query": "love",
+  "clientConfigured": true,
+  "verificationNote": "FAILED live verification — not a passing result. The build made exactly one request to api.jamendo.com; the API answered HTTP 200 with headers.status='failed', code 11: 'Jamendo Api Suspended Application Error: Your application has been suspended' (the publicly documented test client id from the Jamendo docs is suspended). The app behaved honestly: no rows rendered, the error surfaced as a per-source error group, zero Audius/Apple requests, zero page errors. Live playback therefore remains UNVERIFIED; the offline unit (240) and e2e (12) suites are the passing gates. To verify live: set a working VITE_JAMENDO_CLIENT_ID from devportal.jamendo.com and rerun 'npm run smoke:jamendo'. The client id used is intentionally not recorded anywhere in this repository.",
+  "search": {
+    "jmRows": 0,
+    "firstSongId": null,
+    "firstTitle": null,
+    "firstArtist": null,
+    "artistResolved": false,
+    "badgeVisible": false
+  },
+  "playback": {
+    "playerVisible": false,
+    "playing": false,
+    "elapsed": [],
+    "timeAdvanced": false
+  },
+  "attribution": null,
+  "network": {
+    "jamendoApiRequests": 1,
+    "streamRequests": 0,
+    "mediaResponses": 0,
+    "audiusApiRequests": 0,
+    "appleApiRequests": 0
+  },
+  "pageErrors": [],
+  "pass": false
+}
