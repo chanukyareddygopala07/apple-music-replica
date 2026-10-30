@@ -11,7 +11,8 @@ Policy notes carried over from the frontend:
   other providers' lists) — that grouping decision lives in the service layer.
 - `relevanceLanguage` is a relevance *hint* applied by YouTube's servers, not
   a language verification, so tracks are never relabelled as language-matched.
-- The API key is a server credential: sent on our calls, never echoed back.
+- The API key is a server credential: sent in the ``x-goog-api-key`` header
+  on our calls — never in a query URL, never echoed back, never logged.
 """
 
 from __future__ import annotations
@@ -185,18 +186,20 @@ class YoutubeProvider:
             message = self.settings.message or "YouTube search is not configured."
             raise ProviderError("unconfigured", message)
 
-    def _params(self, params: dict[str, Any]) -> dict[str, Any]:
-        return {"key": self.settings.api_key, **params}
+    def _headers(self) -> dict[str, str]:
+        """Credential as a header — Google's documented ``x-goog-api-key``."""
+        return {"x-goog-api-key": self.settings.api_key or ""}
 
     async def _request(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
         self._require_configured()
         url = f"{self.settings.base_url}/{path.lstrip('/')}"
-        # Cache key excludes the API key (params without credentials).
+        # Cache key is params-only: the credential rides in a header, so it is
+        # absent from the URL, the cache key, and anything logged.
         key = f"youtube:{path}:{sorted(params.items())}"
         hit = self.cache.get(key)
         if hit is not cache_miss():
             return hit
-        body = await self._fetcher.get_json(url, self._params(params))
+        body = await self._fetcher.get_json(url, params, headers=self._headers())
         if not isinstance(body, dict):
             raise ProviderError("invalid_response", "YouTube sent an unreadable response.")
         self.cache.set(key, body)

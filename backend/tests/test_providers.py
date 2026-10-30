@@ -10,6 +10,7 @@ from app.config import AudiusSettings, JamendoSettings, YoutubeSettings
 from app.providers import audius as au
 from app.providers import jamendo as jm
 from app.providers import youtube as yt
+from app.providers.base import ProviderError
 
 AU_SETTINGS = AudiusSettings(
     enabled=True, api_key="SERVER-KEY-NEVER-ECHOED", base_url="https://api.audius.co/v1"
@@ -325,7 +326,10 @@ async def test_youtube_search_sets_relevance_hint_and_embeddable_filter() -> Non
     search_request = next(c for c in calls if "/search" in str(c.url))
     assert search_request.url.params["relevanceLanguage"] == "en"
     assert search_request.url.params["videoEmbeddable"] == "true"
-    assert search_request.url.params["key"] == "AIzaTESTKEY-not-real"
+    # The credential travels as a header — never in the query URL.
+    assert "key" not in search_request.url.params
+    assert "AIza" not in str(search_request.url)
+    assert search_request.headers["x-goog-api-key"] == "AIzaTESTKEY-not-real"
     await p._fetcher._client.aclose()
 
 
@@ -390,4 +394,61 @@ async def test_youtube_get_track_rejects_channel_and_album_ids() -> None:
     assert await p.get_track("yt-artist-UC123") is None
     assert await p.get_track("yt-album-x") is None
     assert calls == []
+    await p._fetcher._client.aclose()
+
+
+async def test_youtube_without_a_key_makes_zero_data_api_requests() -> None:
+    """Missing key → honest `unconfigured` and the network is never touched."""
+    unconfigured = YoutubeSettings(
+        enabled=True, api_key=None, base_url="https://www.googleapis.com/youtube/v3"
+    )
+    p, calls = provider(yt.YoutubeProvider, unconfigured, [])
+    with pytest.raises(ProviderError) as excinfo:
+        await p.search("x")
+    assert excinfo.value.kind == "unconfigured"
+    assert "YOUTUBE_API_KEY" in excinfo.value.message
+    assert calls == []  # zero YouTube Data API requests
+    await p._fetcher._client.aclose()
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "expected"),
+    [
+        (
+            403,
+            {
+                "error": {
+                    "code": 403,
+                    "message": (
+                        "The request cannot be completed because you have exceeded your quota."
+                    ),
+                }
+            },
+            "quota",
+        ),
+        (
+            400,
+            {"error": {"code": 400, "message": "API key not valid. Please pass a valid API key."}},
+            "key not valid",
+        ),
+    ],
+)
+async def test_youtube_quota_and_invalid_key_are_clean_provider_errors(
+    status: int, body: dict, expected: str
+) -> None:
+    """Google's quota/credential failures surface typed, secret-free errors."""
+    yt_settings = YoutubeSettings(
+        enabled=True,
+        api_key="AIzaFAKEKEY-not-real",
+        base_url="https://www.googleapis.com/youtube/v3",
+    )
+    p, _ = provider(
+        yt.YoutubeProvider, yt_settings, [("/search", httpx.Response(status, json=body))]
+    )
+    with pytest.raises(ProviderError) as excinfo:
+        await p.search("x")
+    assert excinfo.value.kind == "http"
+    assert excinfo.value.status_code == status
+    assert expected in excinfo.value.message.lower()
+    assert "AIzaFAKEKEY" not in excinfo.value.message  # the key never rides along
     await p._fetcher._client.aclose()

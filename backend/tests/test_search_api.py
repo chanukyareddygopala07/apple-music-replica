@@ -85,11 +85,13 @@ async def test_explicit_youtube_source_is_served_only_when_asked() -> None:
         ).json()
     assert [g["source"] for g in payload["groups"]] == ["youtube"]
     assert payload["groups"][0]["results"]["songs"][0]["playbackKind"] == "youtube"
-    # The API key travels on our outbound call only.
+    # The API key travels on our outbound call only — as a header, never in
+    # the query URL and never in the response body.
     search_calls = [c for c in calls if "/youtube/v3/search" in str(c.url)]
-    assert search_calls and search_calls[0].url.params["key"]
-    text = payload
-    assert "AIzaTESTKEY" not in str(text)
+    assert search_calls
+    assert search_calls[0].headers["x-goog-api-key"] == "AIzaTESTKEY-not-real"
+    assert "key" not in search_calls[0].url.params
+    assert "AIzaTESTKEY" not in str(payload)
 
 
 async def test_language_hides_sources_that_cannot_apply_it() -> None:
@@ -164,6 +166,34 @@ async def test_unconfigured_single_source_answers_honestly() -> None:
     assert payload["groups"][0]["status"] == "unconfigured"
     assert "JAMENDO_CLIENT_ID" in payload["groups"][0]["message"]
     assert calls == []
+
+
+async def test_unconfigured_youtube_answers_honestly_without_network() -> None:
+    """No key → honest group naming the env var, zero Data API requests."""
+    settings = make_settings(YOUTUBE_API_KEY="")
+    async with api([], settings=settings) as (client, calls):
+        payload = (await client.get("/api/search", params={"q": "x", "source": "youtube"})).json()
+    assert payload["groups"][0]["status"] == "unconfigured"
+    assert "YOUTUBE_API_KEY" in payload["groups"][0]["message"]
+    assert calls == []
+
+
+async def test_youtube_quota_exhaustion_is_an_error_group_not_a_crash() -> None:
+    quota = httpx.Response(
+        403,
+        json={
+            "error": {
+                "code": 403,
+                "message": "The request cannot be completed because you have exceeded your quota.",
+            }
+        },
+    )
+    async with api([(r"/youtube/v3/search", quota)]) as (client, _):
+        payload = (await client.get("/api/search", params={"q": "x", "source": "youtube"})).json()
+    group = payload["groups"][0]
+    assert group["status"] == "error"
+    assert "quota" in group["message"].lower()
+    assert "AIza" not in str(payload)  # no credential anywhere in the response
 
 
 async def test_search_results_are_cached_per_query() -> None:
