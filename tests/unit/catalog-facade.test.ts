@@ -137,7 +137,16 @@ function ytRoutes(extra: Record<string, unknown> = {}): Record<string, unknown> 
   }
 }
 
-beforeEach(() => clearRemoteEntities())
+/**
+ * These suites pin the direct browser providers (the static-build path), so
+ * the runtime API probe is forced off — otherwise the `/api/health` probe
+ * would appear in the "zero network" assertions. API-mode behaviour lives in
+ * `api-client.test.ts` and `catalog-api-mode.test.ts`.
+ */
+beforeEach(() => {
+  clearRemoteEntities()
+  vi.stubEnv('VITE_API_ENABLED', '0')
+})
 afterEach(() => {
   clearRemoteEntities()
   vi.unstubAllEnvs()

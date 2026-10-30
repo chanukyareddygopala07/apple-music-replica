@@ -173,7 +173,7 @@ export class MusicKitProvider implements CatalogProvider {
     try {
       instance = await configure({
         developerToken,
-        app: { name: 'Sonora', build: '0.1.0' },
+        app: { name: 'Realaxify', build: '0.1.0' },
       })
     } catch (err) {
       // A cached token may have been rejected/expired server-side: force one
@@ -182,7 +182,7 @@ export class MusicKitProvider implements CatalogProvider {
       this.tokens.invalidate()
       instance = await configure({
         developerToken: await this.tokens.getToken(),
-        app: { name: 'Sonora', build: '0.1.0' },
+        app: { name: 'Realaxify', build: '0.1.0' },
       })
     }
     const getInstance = MK['getInstance'] as (() => unknown) | undefined

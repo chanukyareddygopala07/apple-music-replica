@@ -83,7 +83,7 @@ describe('source selector options', () => {
 
   it('labels the selector values', () => {
     expect(sourceLabel('all')).toBe('All sources')
-    expect(sourceLabel('demo')).toBe('Sonora Demo')
+    expect(sourceLabel('demo')).toBe('Realaxify Demo')
     expect(sourceLabel('musickit')).toBe('Apple Music')
   })
 })

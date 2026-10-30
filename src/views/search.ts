@@ -1,6 +1,6 @@
 /** Search view — query field, language/source filters, tabs, grouped results. */
 
-import { availableSources, flattenGrouped, searchGrouped } from '@/data/catalog'
+import { flattenGrouped, resolveAvailableSources, searchGrouped } from '@/data/catalog'
 import { artistName, albumArtist, artistById } from '@/data/catalog-helpers'
 import type { GroupedSearchResults, SourceFilter } from '@/domain/types'
 import { withBase } from '@/app/router'
@@ -22,7 +22,7 @@ export interface SearchFilterParams {
 }
 
 export async function renderSearch(root: HTMLElement, initialQuery: string, filters: SearchFilterParams = {}): Promise<void> {
-  const available = availableSources()
+  const available = await resolveAvailableSources()
 
   /**
    * A source this build cannot search clamps back to `all`.

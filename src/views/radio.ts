@@ -25,7 +25,7 @@ export async function renderRadio(root: HTMLElement): Promise<void> {
 
   root.innerHTML = `
     <h1 class="page-title">Radio</h1>
-    <p class="page-subtitle">Demo stations spin endless sets from the Sonora catalogue. (Live broadcasts aren’t part of the demo.)</p>
+    <p class="page-subtitle">Demo stations spin endless sets from the Realaxify catalogue. (Live broadcasts aren’t part of the demo.)</p>
     ${sectionHeaderHtml('Stations')}
     <div class="station-grid">${cards}</div>
   `

@@ -35,7 +35,7 @@ export async function renderPlaylist(root: HTMLElement, id: string): Promise<voi
     <div class="detail-hero">
       <img class="hero-art" src="" data-seed="${pl.artworkSeed}" alt="Cover of ${pl.title.replaceAll('"', '')}" />
       <div class="hero-info">
-        <div class="hero-kicker">${pl.isUserPlaylist ? 'Playlist' : 'Sonora Playlist'}</div>
+        <div class="hero-kicker">${pl.isUserPlaylist ? 'Playlist' : 'Realaxify Playlist'}</div>
         <h1>${pl.title.replaceAll('<', '&lt;')}</h1>
         ${pl.curator ? `<div class="hero-meta">${pl.curator.replaceAll('<', '&lt;')}</div>` : ''}
         ${pl.description ? `<p class="hero-desc">${pl.description.replaceAll('<', '&lt;')}</p>` : ''}

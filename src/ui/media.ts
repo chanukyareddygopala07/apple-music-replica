@@ -77,7 +77,7 @@ export function albumCardHtml(album: Album, artistName: string): string {
 
 export function playlistCardHtml(pl: Playlist): string {
   return mediaCardHtml(
-    { id: pl.id, title: pl.title, sub: pl.curator ?? 'Sonora User', seed: pl.artworkSeed, href: `/playlist/${pl.id}` },
+    { id: pl.id, title: pl.title, sub: pl.curator ?? 'Realaxify User', seed: pl.artworkSeed, href: `/playlist/${pl.id}` },
     { playAction: 'play-context', playData: { kind: 'playlist', id: pl.id } },
   )
 }

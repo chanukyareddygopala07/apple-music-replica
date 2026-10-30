@@ -43,7 +43,7 @@ function sidebarHtml(): string {
     <nav class="sidebar" aria-label="Main">
       <div class="sidebar-brand">
         <span class="brand-mark" aria-hidden="true">${icon('sparkle')}</span>
-        <span>Sonora</span>
+        <span>Realaxify</span>
       </div>
       <div class="sidebar-search">
         <a class="nav-item" href="/search" data-nav data-nav-href="/search">${icon('search')}<span>Search</span></a>
@@ -60,7 +60,7 @@ function sidebarHtml(): string {
       <div class="sidebar-footer">
         <button type="button" class="nav-item" data-action="cycle-theme">${icon('sun')}<span>Appearance</span></button>
         <button type="button" class="nav-item" data-action="settings">${icon('info')}<span>About & Settings</span></button>
-        <p class="sidebar-meta">Sonora — an independent demo.<br/>Not affiliated with Apple.</p>
+        <p class="sidebar-meta">Realaxify — an independent multilingual music site.<br/>Not affiliated with Apple.</p>
       </div>
     </nav>`
 }
@@ -75,7 +75,7 @@ function mobileChromeHtml(): string {
   return `
     <header class="mobile-topbar">
       <button type="button" class="icon-btn" data-action="open-drawer" aria-label="Open menu">${icon('menu')}</button>
-      <div class="brand"><span aria-hidden="true">${icon('sparkle')}</span> Sonora</div>
+      <div class="brand"><span aria-hidden="true">${icon('sparkle')}</span> Realaxify</div>
       <a class="icon-btn" href="/search" data-nav aria-label="Search">${icon('search')}</a>
     </header>
     <div class="mobile-scrim" data-drawer-scrim hidden></div>

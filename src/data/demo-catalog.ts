@@ -123,8 +123,8 @@ function album(
     kind,
     songIds: songSeeds.map((s) => s.id),
     description,
-    copyright: `© ${releaseDate.slice(0, 4)} Sonora Demo Records`,
-    label: 'Sonora Demo Records',
+    copyright: `© ${releaseDate.slice(0, 4)} Realaxify Demo Records`,
+    label: 'Realaxify Demo Records',
   }
   const songs: Song[] = songSeeds.map((s, i) => ({
     id: s.id,
@@ -240,7 +240,7 @@ export const PLAYLISTS: Playlist[] = [
     artworkSeed: 'pl-deep-focus',
     songIds: songIds('s-sw-1', 's-sw-2', 's-mh-3', 's-sw-3', 's-lt-2', 's-mh-4', 's-fn-3'),
     isUserPlaylist: false,
-    curator: 'Sonora Editors',
+    curator: 'Realaxify Editors',
   },
   {
     id: 'pl-morning-coffee',
@@ -249,7 +249,7 @@ export const PLAYLISTS: Playlist[] = [
     artworkSeed: 'pl-morning-coffee',
     songIds: songIds('s-fn-2', 's-ss-3', 's-fn-3', 's-ps-1', 's-ss-1', 's-fn-1'),
     isUserPlaylist: false,
-    curator: 'Sonora Editors',
+    curator: 'Realaxify Editors',
   },
   {
     id: 'pl-weekend-drive',
@@ -258,7 +258,7 @@ export const PLAYLISTS: Playlist[] = [
     artworkSeed: 'pl-weekend-drive',
     songIds: songIds('s-mg-1', 's-gh-1', 's-tl-1', 's-ss-2', 's-gh-4', 's-tl-4', 's-mg-2'),
     isUserPlaylist: false,
-    curator: 'Sonora Editors',
+    curator: 'Realaxify Editors',
   },
   {
     id: 'pl-late-night-code',
@@ -267,7 +267,7 @@ export const PLAYLISTS: Playlist[] = [
     artworkSeed: 'pl-late-night-code',
     songIds: songIds('s-mh-1', 's-mh-2', 's-tl-2', 's-sw-1', 's-mh-4', 's-tl-3'),
     isUserPlaylist: false,
-    curator: 'Sonora Editors',
+    curator: 'Realaxify Editors',
   },
   {
     id: 'pl-first-light',
@@ -276,7 +276,7 @@ export const PLAYLISTS: Playlist[] = [
     artworkSeed: 'pl-first-light',
     songIds: songIds('s-sw-2', 's-sw-3', 's-mh-3', 's-sw-1'),
     isUserPlaylist: false,
-    curator: 'Sonora Editors',
+    curator: 'Realaxify Editors',
   },
   {
     id: 'pl-kitchen-soul',
@@ -285,7 +285,7 @@ export const PLAYLISTS: Playlist[] = [
     artworkSeed: 'pl-kitchen-soul',
     songIds: songIds('s-bk-1', 's-bk-2', 's-bk-3', 's-lt-1'),
     isUserPlaylist: false,
-    curator: 'Sonora Editors',
+    curator: 'Realaxify Editors',
   },
 ]
 
@@ -325,7 +325,7 @@ export const STATIONS: Station[] = [
   {
     id: 'st-golden-classics',
     name: 'Golden Classics',
-    description: 'Bright choruses from the Sonora demo shelf.',
+    description: 'Bright choruses from the Realaxify demo shelf.',
     artworkSeed: 'st-golden-classics',
     songIds: songIds('s-mg-1', 's-gh-1', 's-tl-1', 's-ss-2', 's-gh-5', 's-mg-2', 's-bk-2'),
     genreId: 'g-pop',

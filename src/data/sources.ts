@@ -33,7 +33,7 @@ const LABELS: Record<CatalogSource, string> = {
   jamendo: 'Jamendo',
   youtube: 'YouTube',
   musickit: 'Apple Music',
-  demo: 'Sonora Demo',
+  demo: 'Realaxify Demo',
 }
 
 export function sourceLabel(source: SourceFilter): string {

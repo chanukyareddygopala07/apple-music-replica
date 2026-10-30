@@ -87,7 +87,7 @@ export function createNowPlaying(player: PlayerEngine, onClose: () => void): Now
   function applyTheme(snap: PlayerSnapshot): void {
     const song = snap.currentSongId ? songById(snap.currentSongId) : null
     const album = song ? albumById(song.albumId) : null
-    const seed = album?.artworkSeed ?? song?.id ?? 'sonora'
+    const seed = album?.artworkSeed ?? song?.id ?? 'realaxify'
     applyHeroTheme(el, seed)
   }
 

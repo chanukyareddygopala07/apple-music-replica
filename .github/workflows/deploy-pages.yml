@@ -64,8 +64,40 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+  # FastAPI backend gate: ruff + 83 pytest tests + the Playwright suite that
+  # runs the real app against a live uvicorn (npm run test:e2e:api). Runs in
+  # parallel with `build`; the deploy job below waits for both.
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/pyproject.toml
+      # --extra dev pulls pytest + ruff (optional-dependencies.dev)
+      - run: uv sync --directory backend --extra dev
+      - run: uv run --directory backend ruff check .
+      - run: uv run --directory backend python -m pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Boots backend/.venv/bin/uvicorn on :8000 + a preview build on :4174
+      # (VITE_API_ENABLED=1, browser providers off — everything remote must
+      # come through the API, proving the integration rather than the
+      # direct-provider fallback).
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:api
   deploy:
-    needs: build
+    # Pages ships only when both gates are green: the frontend build and the
+    # backend API suite.
+    needs: [build, backend]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

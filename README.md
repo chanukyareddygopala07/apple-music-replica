@@ -1,11 +1,13 @@
-# Sonora
+# Realaxify
 
-A framework-free recreation of the Apple Music web player experience, built as an
-independent demo. Vanilla TypeScript + modern CSS + native browser APIs, bundled
+Multilingual music discovery and streaming, built as an independent demo.
+Framework-free vanilla TypeScript + modern CSS + native browser APIs on the
+front, an optional Python/FastAPI aggregation backend (`backend/`), bundled
 with Vite only because browsers cannot run `.ts` directly.
 
-**Not affiliated with Apple.** Original brand, palette, copy, icons and a fictional
-demo catalogue — no Apple assets, trade dress, or catalogue data.
+**Not affiliated with Apple.** Recreates the Apple Music *player experience*
+only — original brand, palette, copy, icons and a fictional demo catalogue; no
+Apple assets, trade dress, or catalogue data.
 
 **Live demo:** https://chanukyareddygopala07.github.io/apple-music-replica/
 
@@ -14,6 +16,16 @@ demo catalogue — no Apple assets, trade dress, or catalogue data.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
+```
+
+Optional backend (aggregated search/lyrics over the same providers — the app
+works without it):
+
+```bash
+cd backend
+uv sync --extra dev   # plain `uv sync` is enough to just run the server
+set -a; source .env.example; set +a
+.venv/bin/uvicorn app.main:app --reload --port 8000   # /api/health, /api/search, ...
 ```
 
 Other scripts:
@@ -26,6 +38,7 @@ Other scripts:
 | `npm run lint` | ESLint (flat config + typescript-eslint) |
 | `npm test` | Vitest unit tests (jsdom) |
 | `npm run test:e2e` | Playwright end-to-end tests (builds + preview on :4173) |
+| `npm run test:e2e:api` | Playwright e2e against a live backend (uvicorn :8000 + preview :4174) |
 | `npm run capture:reference` | Screenshot the public Apple Music site for reference |
 | `npm run capture:clone` | Screenshot this app + smoke-test playback |
 | `npm run smoke:audius` | Live browser check: Audius search + real playback (needs network) |
@@ -54,7 +67,15 @@ Other scripts:
   add/remove/reorder tracks), recently played — all persisted in `localStorage`
   (with a `pagehide` flush so nothing is lost on tab close).
 - **Now Playing** — full-screen overlay with large artwork, transport, and
-  Lyrics / Queue side panel. Five demo tracks carry embedded time-synced lyrics.
+  Lyrics / Queue side panel. Five demo tracks carry embedded time-synced
+  lyrics; other songs look lyrics up through the optional backend's LRCLIB
+  lookup (see **Lyrics** below) with attribution.
+- **Optional API backend** (`backend/`) — a FastAPI service that aggregates
+  the same free providers behind one allow-listed JSON API (`/api/search`,
+  `/api/tracks/…`, `/api/lyrics`, `/api/providers`, `/api/health`) and is the
+  only component that holds server-side credentials. The browser probes
+  `/api/health` once per session and silently falls back to direct provider
+  calls when the server is absent — the app is fully functional either way.
 - **Design system** (`src/styles/tokens.css`) — light/dark themes (system-aware),
   AA-verified contrast (checked with the replica-design contrast tool), art-derived
   page themes (hero colours and text colour computed from each album's generated
@@ -96,7 +117,7 @@ a free, public API with no paid dependency:
 
 ## Jamendo (free Creative Commons catalogue)
 
-Sonora can also search and stream **[Jamendo](https://www.jamendo.com)** — a free
+Realaxify can also search and stream **[Jamendo](https://www.jamendo.com)** — a free
 catalogue of artist-uploaded Creative Commons music — alongside Audius and the
 demo catalogue.
 
@@ -146,7 +167,7 @@ demo catalogue.
 
 ## YouTube (official watch embed)
 
-Sonora can search **YouTube** for embeddable videos and play them in the
+Realaxify can search **YouTube** for embeddable videos and play them in the
 **official YouTube player** on a dedicated `/watch/:id` page — a separate
 playback path that never touches the `<audio>` engine.
 
@@ -189,7 +210,7 @@ playback path that never touches the `<audio>` engine.
 - **Playback rules honoured:** the player is visible and clearly YouTube's
   (never backgrounded, never audio-only, default YouTube controls — no
   `playerVars` overrides), **never autoplays** (press play), and opening
-  `/watch` pauses the Sonora audio engine so two sources can never overlap.
+  `/watch` pauses the Realaxify audio engine so two sources can never overlap.
   Navigating away destroys the embed. Error codes and embed restrictions fall
   back to the official watch link.
 - **Made-for-kids (Developer Policies III.E.4.j):** each video's
@@ -221,7 +242,7 @@ Audius (above) is the primary external provider; Apple Music remains an
 **optional, separate future integration** with its own secure plumbing
 (`replica/musickit-milestone.md` tracks that plan).
 
-Sonora ships an optional, defensive MusicKit provider (`src/data/musickit-provider.ts`)
+Realaxify ships an optional, defensive MusicKit provider (`src/data/musickit-provider.ts`)
 with M1 secure token plumbing (`src/data/musickit-token.ts`).
 
 - **The `.p8` private key never enters this repository or the browser.** It
@@ -247,6 +268,30 @@ with M1 secure token plumbing (`src/data/musickit-token.ts`).
   (external prerequisites: Apple Developer Program, media identifier, `.p8`,
   and the token-signing service). Demo mode is fully functional without any
   of this.
+
+## API backend (FastAPI, optional)
+
+`backend/` is an optional FastAPI service that aggregates Audius, Jamendo and
+YouTube behind one allow-listed JSON API and is the **only** place server-side
+credentials live. The frontend keeps working without it (direct providers +
+demo catalogue) — see `backend/README.md` for the full route/config reference.
+
+- **Run:** `cd backend && uv sync`, then
+  `.venv/bin/uvicorn app.main:app --reload --port 8000`. The Vite dev server
+  proxies `/api` to `127.0.0.1:8000` (`VITE_API_PROXY` overrides, `off`
+  disables; with `VITE_API_BASE` set the proxy is skipped entirely).
+- **Client behaviour:** `VITE_API_BASE` (default: same origin), and
+  `VITE_API_ENABLED` — unset = one `/api/health` probe per tab session with a
+  sticky fallback to direct providers on failure, `on` = skip the probe,
+  `off` = never contact the API (demo builds, e2e). All `VITE_*` values are
+  public bundle data; secrets belong only in the backend environment.
+- **Security:** exact-origin CORS (no credentials), allow-listed upstream
+  hosts only, redirects disabled, query/body size caps, provider errors
+  sanitized (`Search failed: …`), credentials never returned or logged.
+- **Tests:** 83 pytest tests (`cd backend && .venv/bin/python -m pytest`),
+  `ruff check` + format clean, language table parity-tested against
+  `src/data/languages.ts`, plus 5 Playwright specs running the app against a
+  live server: `npm run test:e2e:api`.
 
 ## Search filters (language + source)
 
@@ -278,7 +323,7 @@ How filtering stays honest:
   - **Apple Music (MusicKit)** — no language filter is implemented here, so it
     behaves the same way: `All languages` only.
 - **Hidden sources are named.** When a language hides a source you could
-  otherwise search, the results page says which ones ("Hidden for French: Sonora
+  otherwise search, the results page says which ones ("Hidden for French: Realaxify
   Demo."); if nothing can answer the query, the empty state explains why instead
   of showing a silent blank.
 - **`Other languages` is a UI-only bucket.** No source can filter by it yet
@@ -299,9 +344,23 @@ How filtering stays honest:
 - **The source selector lists only what this build can search** — `All
   sources`, Audius (when enabled), Jamendo (when a client id is configured),
   YouTube (when an API key is configured), Apple Music (when configured),
-  Sonora Demo. A stale URL pointing at an unavailable source clamps back to
+  Realaxify Demo. A stale URL pointing at an unavailable source clamps back to
   `All sources` — except `src=youtube`, which shows its honest setup notice
   instead of silently pretending nothing was asked.
+
+## Lyrics
+
+- **Embedded originals first.** Five demo tracks ship time-synced lyrics in
+  the catalogue; they render instantly, offline, with click-to-seek on lines.
+- **LRCLIB lookup for everything else.** When a song has no embedded lyrics
+  and the API backend is available, the panel performs one lookup per song id
+  (`GET /api/lyrics` → [lrclib.net](https://lrclib.net), free and keyless)
+  and renders synced lines when present, plain lyrics as static text, or an
+  honest "No lyrics available" / "Instrumental" state. The footer attributes
+  **Lyrics: LRCLIB** with a link to lrclib.net.
+- **Honest about capability.** No backend (or `LYRICS_ENABLED=0`): the panel
+  says lyrics aren't available rather than faking them. Lookups are cached
+  for the session only — nothing about lyrics is persisted.
 
 ## Layout
 
@@ -321,7 +380,9 @@ src/
 scripts/      capture-reference.mjs, capture-clone.mjs, musickit-smoke.mjs,
               audius-smoke.mjs, jamendo-smoke.mjs
 tests/unit    Vitest suites
-tests/e2e     Playwright suites
+tests/e2e     Playwright suites (credential-less, no backend)
+tests/e2e-backend  Playwright suites against a live backend
+backend/      FastAPI service (app/ + tests/, uv-managed .venv)
 replica/      recon notes, feature matrix, screenshots, milestone plan
 ```
 
@@ -338,9 +399,11 @@ replica/      recon notes, feature matrix, screenshots, milestone plan
   offline or during a provider outage everything falls back to the demo
   catalogue.
 - No accounts or cross-device sync — the library is local to your browser.
-- Lyrics exist for five demo tracks; timings are approximations. Audius
-  tracks have no lyrics in this app (and Jamendo lyrics are out of scope:
-  only the stated language metadata is read).
+- Embedded lyrics exist for five demo tracks; timings are approximations.
+  Other tracks depend on the optional backend's LRCLIB lookup (free, but a
+  third-party service — availability is outside this app's control). Audius
+  and Jamendo lyrics remain out of scope beyond that lookup: only Audius's
+  stated language metadata is read.
 - MusicKit streaming is out of scope (see above).
 - YouTube discovery spends from a free quota of **100 searches/day** and has
   **not been verified live with a real key** (keyless contracts are tested).

@@ -17,9 +17,11 @@ export default defineConfig({
     env: {
       // Deterministic, credential-less e2e: Audius (default-on provider) is
       // disabled for the test build so the suite never depends on the live
-      // API. Provider behaviour itself is covered by unit tests.
+      // API. Provider behaviour itself is covered by unit tests. The runtime
+      // API probe is off too — this suite pins the static-build path.
       ...(process.env as unknown as Record<string, string>),
       VITE_AUDIUS_ENABLED: '0',
+      VITE_API_ENABLED: '0',
     },
   },
 })

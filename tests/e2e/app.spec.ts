@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 test('home renders shell, editorial feed and song rows', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible()
-  await expect(page.locator('.app-layout .sidebar-brand')).toContainText('Sonora')
+  await expect(page.locator('.app-layout .sidebar-brand')).toContainText('Realaxify')
   await expect(page.locator('.editorial-card').first()).toBeVisible()
   await expect(page.locator('.song-row').first()).toBeVisible()
 })
@@ -48,7 +48,7 @@ test('search filters default to all and sync language/source with the URL', asyn
   // French search honestly hides it instead of returning English matches.
   await language.selectOption('fr')
   await expect(page).toHaveURL(/lang=fr/)
-  await expect(page.locator('.search-notice')).toContainText('Sonora Demo')
+  await expect(page.locator('.search-notice')).toContainText('Realaxify Demo')
   await expect(page.locator('#search-body .state-block')).toBeVisible()
 
   await source.selectOption('demo')

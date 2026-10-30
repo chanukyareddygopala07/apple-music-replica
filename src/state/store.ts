@@ -24,6 +24,23 @@ export function createStore<T>(initial: T): Store<T> {
   }
 }
 
+/**
+ * One-time key rename (brand migration): copies a legacy key's payload onto
+ * the current key when the current key does not exist yet, then drops the
+ * legacy key. Best-effort — private mode / quota failures are ignored.
+ */
+export function migratePersistedKey(legacyKey: string, key: string): void {
+  try {
+    if (localStorage.getItem(key) !== null) return
+    const raw = localStorage.getItem(legacyKey)
+    if (raw === null) return
+    localStorage.setItem(key, raw)
+    localStorage.removeItem(legacyKey)
+  } catch {
+    /* storage unavailable — nothing to migrate */
+  }
+}
+
 export function loadPersisted<T>(key: string, fallback: T, version = 1): T {
   try {
     const raw = localStorage.getItem(key)

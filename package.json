@@ -1,9 +1,9 @@
 {
-  "name": "sonora-music",
+  "name": "realaxify",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Sonora — an original, framework-free Apple Music-inspired web player (demo catalogue + optional MusicKit path).",
+  "description": "Realaxify \u2014 multilingual music discovery and streaming (Python/FastAPI backend + TypeScript frontend).",
   "scripts": {
     "dev": "vite",
     "build": "npm run typecheck && vite build",
@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:api": "playwright test -c playwright.backend.config.ts",
     "capture:reference": "node scripts/capture-reference.mjs",
     "capture:clone": "node scripts/capture-clone.mjs",
     "smoke:musickit": "node scripts/musickit-smoke.mjs",

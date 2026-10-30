@@ -117,7 +117,7 @@ function patternSvg(pattern: Pattern, to: string, ink: string, rand: () => numbe
 }
 
 export function artworkDataUrl(seed: string, opts?: { round?: boolean }): string {
-  const h = hashSeed(seed || 'sonora')
+  const h = hashSeed(seed || 'realaxify')
   const rand = mulberry32(h)
   const pal = PALETTES[h % PALETTES.length]!
   const [from, to, ink] = pal
@@ -155,7 +155,7 @@ export function artSrc(seed: string, opts?: { round?: boolean }): string {
 
 /** Two-stop gradient (for editorial cards / category washes). */
 export function gradientCss(seed: string): string {
-  const h = hashSeed(seed || 'sonora')
+  const h = hashSeed(seed || 'realaxify')
   const [from, to] = PALETTES[h % PALETTES.length]!
   return `linear-gradient(135deg, ${from}, ${to})`
 }
@@ -163,7 +163,7 @@ export function gradientCss(seed: string): string {
 /** Hero page colours derived from a seed (album/artist/playlist theming).
  * Uses the same palette index as artworkDataUrl so heroes match their art. */
 export function heroColors(seed: string): { from: string; to: string } {
-  const h = hashSeed(seed || 'sonora')
+  const h = hashSeed(seed || 'realaxify')
   const [from, to] = PALETTES[h % PALETTES.length]!
   return { from, to }
 }

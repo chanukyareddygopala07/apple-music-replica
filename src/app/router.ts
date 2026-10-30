@@ -145,7 +145,7 @@ export function createRouter(): Router {
       emit()
     },
     setRouteTitle(title) {
-      document.title = title ? `${title} — Sonora` : 'Sonora'
+      document.title = title ? `${title} — Realaxify` : 'Realaxify'
     },
   }
 }

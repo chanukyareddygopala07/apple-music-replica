@@ -114,7 +114,7 @@ async function main() {
     // Dark mode
     await page.evaluate(() => {
       localStorage.setItem(
-        'sonora:prefs:v1',
+        'realaxify:prefs:v1',
         JSON.stringify({ v: 1, data: { volume: 0.8, muted: false, shuffle: false, repeat: 'off', theme: 'dark', session: null } }),
       )
     })

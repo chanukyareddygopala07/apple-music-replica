@@ -5,7 +5,7 @@ import { router } from '@/app/router-bridge'
 import { getCatalog, songById, artistById } from '@/data/catalog-helpers'
 import { getUserPlaylist, libraryStore, isFavoriteSong, addSongsToPlaylist, removeSongFromPlaylist } from '@/state/library-store'
 import { setThemePref } from '@/state/prefs-store'
-import { providerInfos } from '@/data/catalog'
+import { resolveProviderInfos } from '@/data/catalog'
 import { toggleFavorite } from '@/actions/favorites'
 import { resolveSongIds } from '@/ui/media'
 import { openContextualMenu, type MenuItem } from '@/ui/menu'
@@ -176,7 +176,7 @@ export function bindGlobalActions(root: HTMLElement): () => void {
       el.setAttribute('aria-pressed', String(now))
     }),
     on(root, 'click', '[data-action="song-menu"]', (el) => openSongMenu(el)),
-    on(root, 'click', '[data-action="settings"]', () => openSettings()),
+    on(root, 'click', '[data-action="settings"]', () => void openSettings()),
   ]
   return () => unsubs.forEach((u) => u())
 }
@@ -299,9 +299,11 @@ function openAddToPlaylistDialog(songId: string): void {
   })
 }
 
-function openSettings(): void {
+async function openSettings(): Promise<void> {
   const snap = player.getSnapshot()
-  const providers = providerInfos()
+  // Server-configured providers are included when the API is reachable; a
+  // static build resolves instantly from browser-side config alone.
+  const providers = await resolveProviderInfos()
   openFormDialog({
     title: 'Settings & About',
     fields: [
@@ -330,7 +332,7 @@ function openSettings(): void {
       ${providers.map((p) => `${p.name}: ${p.configured ? 'configured' : 'off'} — ${p.description}`).join('<br/>')}<br/><br/>
       <strong>Keyboard</strong><br/>
       Space play/pause · ←/→ seek 5s · ↑/↓ volume · M mute · N/P next/prev · S shuffle · R repeat · Q queue · / search<br/><br/>
-      Sonora is an independent demo inspired by modern music web players. Not affiliated with Apple.
+      Realaxify is an independent multilingual music discovery and streaming site. Not affiliated with Apple.
       Demo audio: SoundHelix.com. Current queue: ${snap.contextLabel ?? '—'}`
     dlg.appendChild(info)
   }

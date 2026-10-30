@@ -60,6 +60,9 @@ beforeEach(() => {
   appendedScripts = []
   appendSpy = null
   delete (window as unknown as { MusicKit?: unknown }).MusicKit
+  // The catalogue facade's API probe is irrelevant here — keep it off so
+  // "no network" assertions only see MusicKit's own activity.
+  vi.stubEnv('VITE_API_ENABLED', '0')
 })
 
 afterEach(() => {

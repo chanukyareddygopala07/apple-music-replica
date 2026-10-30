@@ -48,6 +48,12 @@ import { MusicKitProvider, isMusicKitConfigured } from '@/data/musickit-provider
 import { AudiusProvider, isAudiusConfigured } from '@/data/audius-provider'
 import { JamendoProvider, isJamendoConfigured } from '@/data/jamendo-provider'
 import { YoutubeProvider, isYoutubeConfigured } from '@/data/youtube-provider'
+import {
+  apiAvailable,
+  apiGetSong,
+  apiSearchGroup,
+  fetchServerProviderInfos,
+} from '@/data/api-client'
 import { describeAudiusConfig } from '@/data/audius-config'
 import { describeJamendoConfig, readJamendoConfig } from '@/data/jamendo-config'
 import { describeMusicKitConfig, readMusicKitConfig } from '@/data/musickit-token'
@@ -65,6 +71,14 @@ const musickit = new MusicKitProvider()
 const isAu = (id: string): boolean => id.startsWith('au-')
 const isJm = (id: string): boolean => id.startsWith('jm-')
 const isYt = (id: string): boolean => id.startsWith('yt-')
+
+/** Server-side source that owns this domain id, or null for local ids. */
+function remoteSourceFor(id: string): 'audius' | 'jamendo' | 'youtube' | null {
+  if (isAu(id)) return 'audius'
+  if (isJm(id)) return 'jamendo'
+  if (youtubeVideoId(id)) return 'youtube'
+  return null
+}
 
 export const catalog: CatalogProvider = {
   info: demo.info,
@@ -113,6 +127,18 @@ export const catalog: CatalogProvider = {
   },
 
   async getSong(id: string): Promise<Song | null> {
+    // Remote ids: prefer the API (server holds the provider credentials), but
+    // never require it — a 404 is authoritative, anything else falls back to
+    // the direct browser provider.
+    const remote = remoteSourceFor(id)
+    if (remote && (await apiAvailable())) {
+      try {
+        return await apiGetSong(remote, id)
+      } catch (err) {
+        const status = (err as { status?: number }).status
+        if (status === 404) return null
+      }
+    }
     if (isAu(id)) {
       try {
         return await audius.getSong(id)
@@ -291,6 +317,33 @@ export function providerInfos(): CatalogProviderInfo[] {
 }
 
 /**
+ * Provider status merged with the server's view (Settings dialog). The API is
+ * the source of truth for remote sources when it is reachable; browser-side
+ * config stays authoritative for demo/MusicKit and as the offline fallback.
+ */
+export async function resolveProviderInfos(): Promise<CatalogProviderInfo[]> {
+  const local = providerInfos()
+  if (!(await apiAvailable())) return local
+  const server = await fetchServerProviderInfos()
+  if (!server) return local
+  const byId = new Map(local.map((info) => [info.id, info]))
+  for (const info of server) {
+    const existing = byId.get(info.id)
+    if (existing) {
+      byId.set(info.id, {
+        ...existing,
+        // Either side being configured means the source can be searched.
+        configured: existing.configured || info.configured,
+        description: info.description || existing.description,
+      })
+    } else {
+      byId.set(info.id, info)
+    }
+  }
+  return Array.from(byId.values())
+}
+
+/**
  * videos.list `status.madeForKids` for a `yt-…` song id, from this session's
  * detail lookups (never persisted; Developer Policies III.E.4.j requires the
  * lookup). `undefined` = unknown → callers must embed conservatively
@@ -321,6 +374,25 @@ export function availableSources(): CatalogSource[] {
 }
 
 /**
+ * Sources this deployment can search, including those configured only on the
+ * server (the normal case: API keys live in the backend's env, not the
+ * bundle). Falls back to the browser-side view whenever the API is absent.
+ */
+export async function resolveAvailableSources(): Promise<CatalogSource[]> {
+  const local = availableSources()
+  if (!(await apiAvailable())) return local
+  const server = await fetchServerProviderInfos()
+  if (!server) return local
+  const live = new Set<CatalogSource>(local)
+  for (const info of server) {
+    if (info.configured && (info.id === 'audius' || info.id === 'jamendo' || info.id === 'youtube')) {
+      live.add(info.id)
+    }
+  }
+  return SOURCE_ORDER.filter((s) => live.has(s))
+}
+
+/**
  * Sources merged into the “All sources” aggregation. YouTube is deliberately
  * excluded: current YouTube API policy guidance is ambiguous about combining
  * API data with other sources (Developer Policies III.E.2 / III.C.5 vs. the
@@ -341,6 +413,18 @@ function filterByLanguage(results: SearchResults, language: string): SearchResul
 
 async function runSource(source: CatalogSource, query: string, language: string): Promise<SearchGroup> {
   const name = sourceName(source)
+  // Remote sources prefer the API (it holds the provider credentials and
+  // applies the language truth table server-side). An unconfigured/disabled
+  // server answer falls through to the browser-side provider, which may still
+  // have its own VITE_* config — best available truth, not exclusive modes.
+  if (source !== 'demo' && source !== 'musickit' && (await apiAvailable())) {
+    try {
+      const group = await apiSearchGroup(source, query, language)
+      if (group.status !== 'unconfigured' && group.status !== 'disabled') return group
+    } catch {
+      // API down mid-session or malformed — fall back to the direct provider.
+    }
+  }
   try {
     let raw: SearchResults
     let cursor: string | undefined
@@ -434,7 +518,7 @@ export async function searchGrouped(
 ): Promise<GroupedSearchResults> {
   const language = normalizeLanguage(options.language)
   const source = normalizeSourceFilter(options.source)
-  const available = availableSources()
+  const available = await resolveAvailableSources()
   // `all` aggregates every configured source EXCEPT YouTube (dedicated-view
   // policy decision — see aggregatedInAll). An explicit `src=youtube` still
   // gets the full dedicated YouTube view, configured or not.

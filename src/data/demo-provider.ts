@@ -67,7 +67,7 @@ export class DemoCatalogProvider implements CatalogProvider {
           eyebrow: 'New Album',
           title: 'Tidal Lines — Neon Harbor',
           subtitle: 'Synthpop for the last ferry home.',
-          caption: 'Out now on Sonora Demo Records.',
+          caption: 'Out now on Realaxify Demo Records.',
           artworkSeed: 'album-al-tidal-lines',
           href: '/album/al-tidal-lines',
         },

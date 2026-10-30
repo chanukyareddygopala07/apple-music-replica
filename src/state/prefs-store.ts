@@ -1,7 +1,7 @@
 /** User preferences + last playback session (localStorage). */
 
 import type { RepeatMode, SourceFilter } from '@/domain/types'
-import { createStore, loadPersisted, persistStore, type Store } from '@/state/store'
+import { createStore, loadPersisted, migratePersistedKey, persistStore, type Store } from '@/state/store'
 import { normalizeLanguage } from '@/data/languages'
 import { normalizeSourceFilter } from '@/data/sources'
 
@@ -27,7 +27,9 @@ export interface Prefs {
   session: SessionState | null
 }
 
-const KEY = 'sonora:prefs:v1'
+const KEY = 'realaxify:prefs:v1'
+/** Pre-rebrand key — migrated once so existing players keep their session. */
+const LEGACY_KEY = 'sonora:prefs:v1'
 
 const DEFAULTS: Prefs = {
   volume: 0.8,
@@ -60,6 +62,7 @@ function sanitize(raw: Prefs): Prefs {
   }
 }
 
+migratePersistedKey(LEGACY_KEY, KEY)
 const initial = sanitize({ ...DEFAULTS, ...loadPersisted<Prefs>(KEY, DEFAULTS) })
 
 export const prefsStore: Store<Prefs> = createStore(initial)

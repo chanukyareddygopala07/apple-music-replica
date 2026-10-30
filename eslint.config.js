@@ -4,7 +4,8 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'playwright-report/**', 'test-results/**', 'replica/**'],
+    // forgeagent/ is an independent subproject with its own config + lint.
+    ignores: ['dist/**', 'node_modules/**', 'playwright-report/**', 'test-results/**', 'replica/**', 'forgeagent/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

@@ -1,7 +1,7 @@
 /** Local library: favorites, user playlists, recently played (localStorage). */
 
 import type { Playlist, RecentlyPlayedEntry } from '@/domain/types'
-import { createStore, loadPersisted, persistStore, type Store } from '@/state/store'
+import { createStore, loadPersisted, migratePersistedKey, persistStore, type Store } from '@/state/store'
 
 export interface LibraryState {
   favoriteSongIds: string[]
@@ -11,7 +11,9 @@ export interface LibraryState {
   recentlyAddedAlbumIds: string[]
 }
 
-const KEY = 'sonora:library:v1'
+const KEY = 'realaxify:library:v1'
+/** Pre-rebrand key — migrated once so existing libraries are kept. */
+const LEGACY_KEY = 'sonora:library:v1'
 
 const DEFAULTS: LibraryState = {
   favoriteSongIds: [],
@@ -38,6 +40,7 @@ function sanitize(raw: Partial<LibraryState>): LibraryState {
   }
 }
 
+migratePersistedKey(LEGACY_KEY, KEY)
 export const libraryStore: Store<LibraryState> = createStore(sanitize({ ...DEFAULTS, ...loadPersisted(KEY, DEFAULTS) }))
 persistStore(KEY, libraryStore)
 
