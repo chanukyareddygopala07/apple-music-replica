@@ -53,6 +53,7 @@ import {
   apiGetSong,
   apiSearchGroup,
   fetchServerProviderInfos,
+  isAbortError,
 } from '@/data/api-client'
 import { describeAudiusConfig } from '@/data/audius-config'
 import { describeJamendoConfig, readJamendoConfig } from '@/data/jamendo-config'
@@ -411,7 +412,12 @@ function filterByLanguage(results: SearchResults, language: string): SearchResul
   return { ...results, songs: results.songs.filter((s) => songMatchesLanguage(s, language)) }
 }
 
-async function runSource(source: CatalogSource, query: string, language: string): Promise<SearchGroup> {
+async function runSource(
+  source: CatalogSource,
+  query: string,
+  language: string,
+  signal?: AbortSignal,
+): Promise<SearchGroup> {
   const name = sourceName(source)
   // Remote sources prefer the API (it holds the provider credentials and
   // applies the language truth table server-side). An unconfigured/disabled
@@ -419,11 +425,21 @@ async function runSource(source: CatalogSource, query: string, language: string)
   // have its own VITE_* config — best available truth, not exclusive modes.
   if (source !== 'demo' && source !== 'musickit' && (await apiAvailable())) {
     try {
-      const group = await apiSearchGroup(source, query, language)
+      const group = await apiSearchGroup(source, query, language, signal)
       if (group.status !== 'unconfigured' && group.status !== 'disabled') return group
-    } catch {
+    } catch (err) {
+      // A superseded search stops here: no fallback request for a query the
+      // user has already replaced (the view drops cancelled rejections).
+      if (isAbortError(err) || signal?.aborted) throw err
       // API down mid-session or malformed — fall back to the direct provider.
     }
+  }
+  // Cancellation check for the fallback path (API off/unavailable, or the
+  // abort landed while the availability probe was still running).
+  if (signal?.aborted) {
+    const cancelled = new Error('Search cancelled')
+    cancelled.name = 'AbortError'
+    throw cancelled
   }
   try {
     let raw: SearchResults
@@ -531,7 +547,7 @@ export async function searchGrouped(
 
   const eligible = requested.filter((s) => sourceSupportsLanguage(s, language))
   const hiddenSources = requested.filter((s) => !sourceSupportsLanguage(s, language))
-  const groups = await Promise.all(eligible.map((s) => runSource(s, query, language)))
+  const groups = await Promise.all(eligible.map((s) => runSource(s, query, language, options.signal)))
   return { query, language, source, hiddenSources, groups }
 }
 

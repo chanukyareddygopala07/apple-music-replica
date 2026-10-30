@@ -538,3 +538,107 @@ Nothing in phases 0–3 removes, redirects, or changes the GitHub Pages URL or p
   `backend/app/models/schemas.py`, `backend/README.md`, `backend/.env.example`
 - `.github/workflows/deploy-pages.yml`, `vite.config.ts`, `src/data/api-client.ts`,
   `README.md`, `.env.example`, `replica/mvp-reference-plan.md`
+
+---
+
+## 17. Staging deployment record — Stage G2 (executed 2026-10-30)
+
+Live verification of the service created by the account holder. Sections 1–16 remain the
+plan as written; this section records what was actually observed. *(Uncommitted per
+instruction — commit only with explicit approval.)*
+
+### 17.1 Service configuration
+
+| Item | Value |
+|---|---|
+| Service name | `realaxify-api` |
+| URL | **https://realaxify.onrender.com** (root; `realaxify-api.onrender.com` → 404) |
+| Deployed code | `main` @ `dd968ea` (`fix: secure YouTube API key transmission`) at creation; **Auto-Deploy: Off** — later pushes do not redeploy |
+| Root directory | `backend` (contains `pyproject.toml` + `uv.lock`; Render auto-detects uv) |
+| Build command | `pip install uv && uv sync --locked --no-dev` (dry-run exit 0 before deploy) |
+| Start command | `.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Health check path | `/api/health` (HTTP GET, 2xx required) |
+| Instance / region | Free plan instructed; **region discrepancy — see §17.9** |
+
+### 17.2 Environment variables (Render dashboard)
+
+| Variable | Status | How verified |
+|---|---|---|
+| `PYTHON_VERSION=3.12.16` | set | service built and runs (fully-qualified version required by Render) |
+| `APP_ENV=production` | set | config default path exercised |
+| `LOG_LEVEL=info` | set | no log inspection needed; no errors observed |
+| `CORS_ORIGINS=https://chanukyareddygopala07.github.io` | set | live CORS preflight returned exact ACAO (§17.6) |
+| `YOUTUBE_API_KEY` | **set as Secret** | behavior only: `/api/providers` → `youtube: ready, configured: true`; value never read, displayed, logged, or committed |
+| Everything else (Jamendo id, DB URLs, OAuth, …) | left unset | honest `unconfigured` states; code defaults apply; no `Add from .env` bulk import used |
+
+Credential safety: repo + full history scanned for `AIza[0-9A-Za-z_-]{35}` → **0 matches**;
+every live response captured during verification scanned for the same pattern → **0 matches**;
+provider sends the key only via `x-goog-api-key` header, never in URLs.
+
+### 17.3 Health (Phase 5A)
+
+`GET /api/health` → **HTTP 200** in ~0.23 s warm; body: `{"service":"realaxify-api","version":"0.1.0",...}` — correct identity, no internals.
+
+### 17.4 Providers and live data-plane results (Phase 5B–G)
+
+| Check | Result |
+|---|---|
+| `GET /api/providers` | 200 — `audius: ready`, `youtube: ready (configured: true)`, `jamendo: unconfigured` (honest message, zero upstream requests) |
+| YouTube search (exactly **one** `search.list`, 100 quota units) | 200, `status: ok`, 20 songs + cursor, 0.63 s |
+| Audius search | 200, `status: ok`, 19 songs + 8 artists with `audioUrl`, 5.4 s (Audius origin slow, still within timeout) |
+| Jamendo search | 200, `status: unconfigured`, 0 songs, 0.17 s |
+| Lyrics — known track | 200, `found: true`, plain + synced lengths returned with LRCLIB attribution; content not reproduced here |
+| Lyrics — nonexistent track (attempt 1/2) | 502 "server is busy" then 504 "provider did not respond in time" — **LRCLIB upstream flaky**, mapped to friendly typed errors, no traceback/secret; `found: false` path **pending re-test** |
+| Lyrics — invalid `<script>` input | 422 `Invalid track_name.` (rejected, not echoed) |
+
+### 17.5 Docs surface
+
+`/docs` 200, `/openapi.json` 200, `/redoc` 200. Paths: `/api/health`, `/api/providers`,
+`/api/search`, `/api/lyrics`, `/api/tracks/{provider}/{track_id}`.
+
+### 17.6 CORS and security battery (Phase 6)
+
+| Check | Result |
+|---|---|
+| OPTIONS preflight, Pages origin | 200; `access-control-allow-origin` = exact Pages origin; methods `GET, OPTIONS`; **no** `allow-credentials` |
+| OPTIONS preflight, foreign origin | 400, **zero** ACAO headers (blocked) |
+| GET with Pages origin | 200 + exact ACAO |
+| Invalid `source`/`language`/`cursor`/`limit`/empty `q`/`q>200` | all 422 with structured JSON |
+| Unknown path → 404; bad path provider → 422 | structured, no internals |
+| Query string >4096 chars → **414** `Query string too long.` | verified |
+| Stack traces / filesystem paths in any error body | **0** |
+| Credential-shaped strings in all captured responses | **0** |
+| SSRF surface | no URL-typed/URL-named parameter exists anywhere in OpenAPI — no user-controlled outbound URL |
+
+### 17.7 Timing (Phase 7, warm)
+
+health 0.23 s · YouTube search 0.63 s · Jamendo 0.17 s · lyrics 0.85 s · Audius 5.4 s (upstream-dominated) · validations 422 sub-0.3 s.
+
+### 17.8 Cold start (Phase 7, after ≥15 min idle)
+
+**Pending measurement** — recorded in §17.8 addendum below after the idle window completes.
+
+### 17.9 Known limitations and discrepancies
+
+1. **Region:** DNS origin resolved to `gcp-us-west1-1.origin.onrender.com` → evidence says
+   **Oregon, not the targeted Singapore**. Region is immutable after creation. Awaiting the
+   account holder's confirmation of what the creation flow offered (Singapore + Free was the
+   stop condition). Not assumed fixed either way.
+2. **Instance type** Free vs paid not dashboard-confirmed by the operator yet (no billing/
+   card is consistent with Free; health endpoint works).
+3. Free-tier behavior accepted: 15-min idle spin-down (~1 min wake), 750 instance-h/month,
+   ephemeral filesystem (no persistent SQLite), ~2-deploy rollback, service-initiated-traffic
+   suspension risk; **no keep-alive traffic sent** (prohibited), no card attached, no paid
+   DB/domain/disk.
+4. YouTube quota: 100 units/search consumed once for verification; ~99 searches/day remain.
+5. Jamendo still unconfigured (free client id not provisioned — later milestone).
+6. **Stage G3 not done:** frontend still has no `VITE_API_BASE` switch; Pages serves static
+   build; browser→staging integration is the next stage.
+7. LRCLIB upstream flakiness observed (one 502 + one 504 during verification); graceful
+   degradation confirmed, `found: false` behavior still to be confirmed.
+
+### 17.10 Regression gates at deployment time (all green)
+
+frontend lint ✓ · typecheck ✓ · **356** unit ✓ · build ✓ · **17** e2e ✓ · backend ruff check ✓ +
+format (33 files) ✓ · **88** pytest ✓ · **5** API e2e ✓ — run locally against the deployed
+commit's working tree; all runs local, no staging traffic during the idle window.

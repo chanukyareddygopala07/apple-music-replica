@@ -40,6 +40,13 @@ function stubFetch(routes: Record<string, unknown>): { calls: string[] } {
   return { calls }
 }
 
+/** A request that hangs until its abort signal fires (cold instance / slow upstream). */
+function hangUntilAbort(init?: RequestInit): Promise<Response> {
+  return new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+  })
+}
+
 const HEALTH = { status: 'ok', service: 'realaxify-api', version: '0.1.0', uptimeSeconds: 1, providers: [] }
 
 const API_TRACK = {
@@ -66,6 +73,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
   resetApiProbe()
@@ -271,5 +279,161 @@ describe('provider status', () => {
   it('returns null when the API is unreachable', async () => {
     stubFetch({})
     expect(await fetchServerProviderInfos()).toBeNull()
+  })
+})
+
+describe('cold start (Render free instance)', () => {
+  it('a timing-out probe waits once through the cold-start budget, then sticks true', async () => {
+    vi.useFakeTimers()
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: string, init?: RequestInit) => {
+        calls += 1
+        if (calls === 1) return hangUntilAbort(init)
+        return Promise.resolve(http(HEALTH))
+      }),
+    )
+    const probe = apiAvailable()
+    await vi.advanceTimersByTimeAsync(4_000) // attempt 1 times out → attempt 2 starts and answers
+    expect(calls).toBe(2)
+    expect(await probe).toBe(true)
+    // Sticky: the decision lasts the whole session — no further probing.
+    expect(await apiAvailable()).toBe(true)
+    expect(calls).toBe(2)
+  })
+
+  it('a cold-start wait that also times out fails the probe exactly twice (never loops)', async () => {
+    vi.useFakeTimers()
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: string, init?: RequestInit) => {
+        calls += 1
+        return hangUntilAbort(init)
+      }),
+    )
+    const probe = apiAvailable()
+    await vi.advanceTimersByTimeAsync(4_000) // attempt 1
+    await vi.advanceTimersByTimeAsync(65_000) // attempt 2 (cold budget)
+    expect(await probe).toBe(false)
+    expect(calls).toBe(2)
+    expect(await apiAvailable()).toBe(false)
+    expect(calls).toBe(2)
+  })
+
+  it('an immediate network failure answers the probe at once — no cold-start wait', async () => {
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => {
+        calls += 1
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }),
+    )
+    expect(await apiAvailable()).toBe(false)
+    expect(calls).toBe(1)
+    expect(await apiAvailable()).toBe(false)
+    expect(calls).toBe(1)
+  })
+
+  it('retries a timed-out data call once (instance sleeping mid-session) and succeeds', async () => {
+    vi.useFakeTimers()
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: string, init?: RequestInit) => {
+        calls += 1
+        if (calls === 1) return hangUntilAbort(init)
+        return Promise.resolve(
+          http({
+            query: 'waves',
+            language: 'all',
+            source: 'audius',
+            groups: [{ source: 'audius', name: 'Audius', status: 'ok', results: { query: 'waves', songs: [] } }],
+          }),
+        )
+      }),
+    )
+    const pending = apiSearchGroup('audius', 'waves', 'all')
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect((await pending).status).toBe('ok')
+    expect(calls).toBe(2)
+  })
+
+  it('never retries HTTP errors (404/5xx are answers, not timeouts)', async () => {
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => {
+        calls += 1
+        return Promise.resolve(http({ detail: 'boom' }, 500))
+      }),
+    )
+    await expect(apiGetSong('audius', 'au-song-x')).rejects.toMatchObject({ status: 500 })
+    expect(calls).toBe(1)
+  })
+})
+
+describe('search cancellation (AbortController)', () => {
+  it('aborts an in-flight search with the caller signal and never retries it', async () => {
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: string, init?: RequestInit) => {
+        calls += 1
+        return hangUntilAbort(init)
+      }),
+    )
+    const controller = new AbortController()
+    const pending = apiSearchGroup('audius', 'waves', 'all', controller.signal)
+    expect(calls).toBe(1) // request dispatched
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(calls).toBe(1) // cancellation is not a timeout — no second attempt
+  })
+
+  it('a signal aborted before dispatch sends nothing at all', async () => {
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => {
+        calls += 1
+        return Promise.resolve(http({}))
+      }),
+    )
+    const controller = new AbortController()
+    controller.abort()
+    await expect(apiSearchGroup('audius', 'waves', 'all', controller.signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(calls).toBe(0)
+  })
+})
+
+describe('provider status request sharing', () => {
+  it('concurrent callers share one in-flight /api/providers request, refetching after settle', async () => {
+    let calls = 0
+    let release: (response: Response) => void = () => {}
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => {
+        calls += 1
+        return new Promise<Response>((resolve) => {
+          release = resolve
+        })
+      }),
+    )
+    const first = fetchServerProviderInfos()
+    const second = fetchServerProviderInfos()
+    expect(calls).toBe(1)
+    release(http({ providers: [{ id: 'audius', name: 'Audius', description: '', configured: true, status: 'ready' }] }))
+    expect(await first).toHaveLength(1)
+    expect(await second).toEqual(await first)
+    // Settled promises clear, so later callers get fresh status — never a stale cache.
+    const third = fetchServerProviderInfos()
+    expect(calls).toBe(2)
+    release(http({ providers: [] }))
+    expect(await third).toEqual([])
   })
 })

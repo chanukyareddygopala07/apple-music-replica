@@ -308,3 +308,43 @@ describe('static-build mode', () => {
     expect(calls).toEqual([])
   })
 })
+
+describe('search cancellation', () => {
+  it('an aborted search rejects as cancelled instead of falling back or rendering stale results', async () => {
+    let searchStarted: () => void = () => {}
+    const started = new Promise<void>((resolve) => {
+      searchStarted = resolve
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const url = new URL(input, 'http://localhost')
+        if (url.pathname.endsWith('/api/health')) return http(HEALTH)
+        if (url.pathname.endsWith('/api/providers')) return http(PROVIDERS_ALL_ON.body ?? {})
+        if (url.pathname.endsWith('/api/search')) {
+          searchStarted()
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+          })
+        }
+        return http({ detail: 'not found' }, 404)
+      }),
+    )
+    const mod = await freshModule()
+    const controller = new AbortController()
+    const pending = mod.searchGrouped('ocean waves', { source: 'audius', signal: controller.signal })
+    await started // the API search is in flight
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    // No direct-provider fallback fired for the superseded query: every request
+    // this test observed went to /api (fallbacks would hit api.audius.co and
+    // surface as a resolved error group, not a cancellation rejection).
+  })
+
+  it('without a signal the same search resolves normally (cancellation is opt-in)', async () => {
+    stubApi([PROVIDERS_ALL_ON, searchRoute('audius', [API_SONG])])
+    const mod = await freshModule()
+    const grouped = await mod.searchGrouped('coastal', { source: 'audius' })
+    expect(grouped.groups[0]?.status).toBe('ok')
+  })
+})

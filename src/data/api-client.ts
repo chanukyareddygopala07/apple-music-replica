@@ -16,9 +16,11 @@
  *   there: it is an enhancement, not a requirement.
  *
  * Safety rules mirrored from the server: no credentials in requests or
- * responses, bounded request timeouts, and a 404 from the API is treated as
- * authoritative (the provider does not know that id) while transport errors
- * fall back to the direct providers.
+ * responses, bounded request timeouts (one patient retry through a Render
+ * cold start, never a keep-alive loop), caller cancellation for superseded
+ * searches, and a 404 from the API is treated as authoritative (the provider
+ * does not know that id) while transport errors fall back to the direct
+ * providers.
  */
 
 import type {
@@ -133,8 +135,28 @@ interface ApiProviderInfo {
 
 type RemoteApiSource = Extract<CatalogSource, 'audius' | 'jamendo' | 'youtube'>
 
+/**
+ * Timeout budgets — bounded by design. Every request gets one attempt (two
+ * only when a Render free-tier cold start is plausible, i.e. the first
+ * attempt *timed out*); nothing ever loops, and no keep-alive polling exists.
+ *
+ * - Probe attempt 1 (4 s): a warm instance or a static host answers at once.
+ * - Probe attempt 2 (65 s): a sleeping free instance wakes in about a minute;
+ *   Render holds the request open until the instance is up, so one patient
+ *   wait decides the session. Connection errors/CORS never get the second
+ *   wait — they are answered immediately.
+ * - Data calls (30 s, one timeout retry): covers a mid-session spin-down
+ *   (15 min idle) the same way — total worst case ≈ one wake cycle.
+ */
+const HEALTH_PROBE_TIMEOUT_MS = 4_000
+const HEALTH_PROBE_COLD_TIMEOUT_MS = 65_000
+const REQUEST_TIMEOUT_MS = 30_000
+
 /** One health probe per session; `null` until the first decision is made. */
 let probePromise: Promise<boolean> | null = null
+
+/** Shared in-flight `/api/providers` request (concurrent callers, one GET). */
+let providersInFlight: Promise<CatalogProviderInfo[] | null> | null = null
 
 /** Literal import.meta.env reads so Vite bakes values at build time. */
 export function readApiConfig(rawEnv: {
@@ -161,26 +183,90 @@ export function apiBase(): string {
 /** Test hook: forget the cached availability decision. */
 export function resetApiProbe(): void {
   probePromise = null
+  providersInFlight = null
 }
 
-async function fetchJson(path: string, timeoutMs = 6000): Promise<unknown> {
+/** Caller cancellation (stale searches) — never retried, never re-sent. */
+function cancelError(): Error {
+  const error = new Error('Request cancelled')
+  error.name = 'AbortError'
+  return error
+}
+
+/** Our timeout budget expired — the only failure that earns a retry. */
+function timeoutError(): Error {
+  const error = new Error('Request timed out')
+  error.name = 'TimeoutError'
+  return error
+}
+
+/** `true` for cancellation (caller AbortSignal), so callers can drop silently. */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
+/** `true` only for our own timeout budget — the sole retryable failure. */
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'TimeoutError'
+}
+
+interface FetchJsonOptions {
+  timeoutMs?: number
+  /** Caller cancellation (stale search) — checked first, never retried. */
+  signal?: AbortSignal
+  /** One extra attempt after a *timeout* only (Render cold start). */
+  retryOnTimeout?: boolean
+}
+
+async function fetchOnce(path: string, timeoutMs: number, external?: AbortSignal): Promise<unknown> {
+  if (external?.aborted) throw cancelError()
   const { base } = liveConfig()
-  const controller = typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? AbortSignal.timeout(timeoutMs) : undefined
-  const response = await fetch(`${base}${path}`, {
-    headers: { Accept: 'application/json' },
-    signal: controller ?? null,
-  })
-  if (!response.ok) {
-    const error = new Error(`API ${response.status}`) as Error & { status: number }
-    error.status = response.status
-    throw error
+  const timeoutCtl = new AbortController()
+  const timer = setTimeout(() => timeoutCtl.abort(), timeoutMs)
+  const onExternalAbort = () => timeoutCtl.abort()
+  external?.addEventListener('abort', onExternalAbort, { once: true })
+  try {
+    const response = await fetch(`${base}${path}`, {
+      headers: { Accept: 'application/json' },
+      signal: timeoutCtl.signal,
+    })
+    if (!response.ok) {
+      const error = new Error(`API ${response.status}`) as Error & { status: number }
+      error.status = response.status
+      throw error
+    }
+    return await response.json()
+  } catch (err) {
+    // Classification order matters: caller abort wins over our own timeout so
+    // a cancelled request can never be retried, and HTTP/network errors pass
+    // through untouched (404 stays authoritative, 4xx/5xx never retried).
+    if (external?.aborted) throw cancelError()
+    if (timeoutCtl.signal.aborted) throw timeoutError()
+    throw err
+  } finally {
+    clearTimeout(timer)
+    external?.removeEventListener('abort', onExternalAbort)
   }
-  return response.json() as Promise<unknown>
+}
+
+async function fetchJson(path: string, options: FetchJsonOptions = {}): Promise<unknown> {
+  const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS
+  try {
+    return await fetchOnce(path, timeoutMs, options.signal)
+  } catch (err) {
+    const canRetry =
+      options.retryOnTimeout === true && isTimeoutError(err) && options.signal?.aborted !== true
+    if (!canRetry) throw err
+    // Exactly one retry, same bounded budget — covers a sleeping instance
+    // waking mid-session without ever becoming a retry loop.
+    return fetchOnce(path, timeoutMs, options.signal)
+  }
 }
 
 /**
  * Is the API reachable for this session? Resolves at most once; failures are
- * sticky so a static host never gets probed on every keystroke.
+ * sticky so a static host never gets probed on every keystroke. Two requests
+ * max per session (fast attempt + cold-start wait), never keep-alive traffic.
  */
 export function apiAvailable(): Promise<boolean> {
   if (probePromise) return probePromise
@@ -195,10 +281,20 @@ export function apiAvailable(): Promise<boolean> {
   }
   probePromise = (async () => {
     try {
-      const body = (await fetchJson('/api/health', 2500)) as { status?: unknown }
+      const body = (await fetchJson('/api/health', { timeoutMs: HEALTH_PROBE_TIMEOUT_MS })) as {
+        status?: unknown
+      }
       return body?.status === 'ok'
-    } catch {
-      return false
+    } catch (err) {
+      if (!isTimeoutError(err)) return false
+      try {
+        const body = (await fetchJson('/api/health', { timeoutMs: HEALTH_PROBE_COLD_TIMEOUT_MS })) as {
+          status?: unknown
+        }
+        return body?.status === 'ok'
+      } catch {
+        return false
+      }
     }
   })()
   return probePromise
@@ -390,14 +486,16 @@ export function mapGroupedResponse(raw: unknown, fallbackQuery: string): Grouped
 /**
  * Search one remote source through the API. Throws on transport/HTTP errors —
  * the caller (catalogue facade) falls back to the direct browser provider.
+ * `signal` cancels a search the user has already superseded (new keystroke).
  */
 export async function apiSearchGroup(
   source: RemoteApiSource,
   query: string,
   language: string,
+  signal?: AbortSignal,
 ): Promise<SearchGroup> {
   const params = new URLSearchParams({ q: query, source, language })
-  const body = await fetchJson(`/api/search?${params.toString()}`)
+  const body = await fetchJson(`/api/search?${params.toString()}`, { signal, retryOnTimeout: true })
   const grouped = mapGroupedResponse(body, query)
   const group = grouped?.groups.find((g) => g.source === source)
   if (!group) throw new Error('Malformed search response from the API.')
@@ -409,7 +507,9 @@ export async function apiSearchGroup(
  * that id (authoritative 404); a thrown error means "try the direct provider".
  */
 export async function apiGetSong(source: RemoteApiSource, domainId: string): Promise<Song | null> {
-  const body = await fetchJson(`/api/tracks/${source}/${encodeURIComponent(domainId)}`)
+  const body = await fetchJson(`/api/tracks/${source}/${encodeURIComponent(domainId)}`, {
+    retryOnTimeout: true,
+  })
   const detail = (isRecord(body) ? body : {}) as ApiTrackDetail
   const song = mapSong(detail.track)
   if (!song) throw new Error('Malformed track response from the API.')
@@ -449,7 +549,7 @@ export async function apiGetLyrics(signature: {
   })
   if (signature.albumName) params.set('album_name', signature.albumName)
   if (signature.durationSeconds) params.set('duration', String(signature.durationSeconds))
-  const body = await fetchJson(`/api/lyrics?${params.toString()}`)
+  const body = await fetchJson(`/api/lyrics?${params.toString()}`, { retryOnTimeout: true })
   if (!isRecord(body)) throw new Error('Malformed lyrics response from the API.')
   const result: RemoteLyrics = {
     found: asBoolean(body.found) ?? false,
@@ -466,27 +566,37 @@ export async function apiGetLyrics(signature: {
   return result
 }
 
-/** Server-side provider status for the Settings dialog. `null` = API down. */
-export async function fetchServerProviderInfos(): Promise<CatalogProviderInfo[] | null> {
-  try {
-    const body = (await fetchJson('/api/providers', 4000)) as { providers?: unknown }
-    if (!Array.isArray(body?.providers)) return null
-    return body.providers
-      .filter((p): p is ApiProviderInfo & Record<string, unknown> => isRecord(p))
-      .map((p) => {
-        const id = asString(p.id)
-        const name = asString(p.name)
-        if (!id || !name) return null
-        const info: CatalogProviderInfo = {
-          id: id as CatalogProviderInfo['id'],
-          name,
-          description: asString(p.description) ?? '',
-          configured: asBoolean(p.configured) ?? false,
-        }
-        return info
-      })
-      .filter((info): info is CatalogProviderInfo => info !== null)
-  } catch {
-    return null
-  }
+/**
+ * Server-side provider status for the Settings dialog. `null` = API down.
+ * Concurrent callers (source resolution + settings panel) share one in-flight
+ * GET; the promise clears when it settles so the status is never cached stale.
+ */
+export function fetchServerProviderInfos(): Promise<CatalogProviderInfo[] | null> {
+  if (providersInFlight) return providersInFlight
+  providersInFlight = (async () => {
+    try {
+      const body = (await fetchJson('/api/providers', { retryOnTimeout: true })) as { providers?: unknown }
+      if (!Array.isArray(body?.providers)) return null
+      return body.providers
+        .filter((p): p is ApiProviderInfo & Record<string, unknown> => isRecord(p))
+        .map((p) => {
+          const id = asString(p.id)
+          const name = asString(p.name)
+          if (!id || !name) return null
+          const info: CatalogProviderInfo = {
+            id: id as CatalogProviderInfo['id'],
+            name,
+            description: asString(p.description) ?? '',
+            configured: asBoolean(p.configured) ?? false,
+          }
+          return info
+        })
+        .filter((info): info is CatalogProviderInfo => info !== null)
+    } catch {
+      return null
+    }
+  })().finally(() => {
+    providersInFlight = null
+  })
+  return providersInFlight
 }

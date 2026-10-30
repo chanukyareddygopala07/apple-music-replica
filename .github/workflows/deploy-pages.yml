@@ -39,6 +39,12 @@ jobs:
       - run: npm run build
         env:
           VITE_BASE: /apple-music-replica/
+          # Realaxify backend origin (public configuration, not a secret).
+          # The Pages build calls the deployed Render API cross-origin; CORS
+          # on the backend allows this exact origin. Local dev leaves it unset
+          # and uses the vite /api proxy → http://127.0.0.1:8000 (see
+          # .env.example). Trailing slashes are normalised by the client.
+          VITE_API_BASE: https://realaxify.onrender.com
           # Audius is the default-on external provider; these Actions
           # *variables* (not secrets) override it — empty = anonymous
           # default-on behaviour. Set VITE_AUDIUS_ENABLED=0 to ship demo-only.

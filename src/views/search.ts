@@ -1,6 +1,7 @@
 /** Search view — query field, language/source filters, tabs, grouped results. */
 
 import { flattenGrouped, resolveAvailableSources, searchGrouped } from '@/data/catalog'
+import { isAbortError } from '@/data/api-client'
 import { artistName, albumArtist, artistById } from '@/data/catalog-helpers'
 import type { GroupedSearchResults, SourceFilter } from '@/domain/types'
 import { withBase } from '@/app/router'
@@ -91,6 +92,8 @@ export async function renderSearch(root: HTMLElement, initialQuery: string, filt
   let currentQuery = initialQuery
   let currentTab: Tab = 'top'
   let seq = 0
+  /** In-flight search — aborted whenever a newer keystroke/filter supersedes it. */
+  let controller: AbortController | null = null
 
   /** Keep the URL shareable: q + non-default filters only. */
   function syncUrl(): void {
@@ -137,12 +140,35 @@ export async function renderSearch(root: HTMLElement, initialQuery: string, filt
 
   async function runSearch(q: string): Promise<void> {
     const mySeq = ++seq
+    // Supersede the previous request: cancel its network work (AbortController)
+    // and rely on the sequence guard to drop anything that still resolves, so
+    // a stale response can never overwrite newer results.
+    controller?.abort()
+    const abort = new AbortController()
+    controller = abort
     if (!q.trim()) {
       body.innerHTML = idleHtml()
       return
     }
     body.innerHTML = `<div style="padding:0 40px">${skeletonRowsHtml(5)}</div>`
-    const grouped = await searchGrouped(q, { language: currentLanguage, source: currentSource })
+    let grouped: GroupedSearchResults
+    try {
+      grouped = await searchGrouped(q, {
+        language: currentLanguage,
+        source: currentSource,
+        signal: abort.signal,
+      })
+    } catch (err) {
+      // Cancelled or superseded — a newer runSearch owns the view now.
+      if (mySeq !== seq || abort.signal.aborted || isAbortError(err)) return
+      // Real failure (unexpected rejection — sources normally answer with an
+      // honest per-source group): bounded error state with a retry, never a
+      // spinner that can hang.
+      body.innerHTML = `
+        <div class="search-notice" role="alert">Search is unavailable right now. Please try again.</div>
+        ${emptyStateHtml('search', 'Something went wrong', 'The search could not be completed.', `<button type="button" class="btn btn-secondary" data-action="search-retry">Retry</button>`)}`
+      return
+    }
     if (mySeq !== seq) return
     renderResults(grouped)
   }
@@ -289,6 +315,9 @@ export async function renderSearch(root: HTMLElement, initialQuery: string, filt
     input.value = ''
     input.focus()
     debounced('')
+  })
+  on(root, 'click', '[data-action="search-retry"]', () => {
+    refresh()
   })
 
   if (initialQuery) void runSearch(initialQuery)

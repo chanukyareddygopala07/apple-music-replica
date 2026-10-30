@@ -145,6 +145,8 @@ export interface SearchGroup {
 export interface SearchQueryOptions {
   language?: string
   source?: SourceFilter
+  /** Cancels superseded searches (stale keystrokes) — see data/api-client. */
+  signal?: AbortSignal
 }
 
 /** Grouped search: results partitioned per source, never merged. */
