@@ -447,11 +447,21 @@ a.section-title:hover {
   }
 }
 
-/* "Explore by Language" shelves: horizontal row scrollers under one header.
-   Rows widen with the viewport (titles truncate less on large desktops). */
-.lang-shelf .carousel-track .song-row {
-  width: auto;
-  flex: 0 0 clamp(340px, 26vw, 420px);
+/* "Explore by Language" shelves: a responsive row grid on desktop so every
+   track sits fully inside the column (no partial cards) and the available
+   width decides how many fit; narrow screens keep the snap scroller. */
+@media (min-width: 641px) {
+  .lang-shelf .carousel-track {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+    column-gap: var(--space-6);
+    row-gap: 0;
+  }
+
+  /* Nothing scrolls in the grid, so the scroll affordance is never shown. */
+  .lang-shelf .carousel-arrow {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {
@@ -465,7 +475,11 @@ a.section-title:hover {
 /* ---------- Editorial hero cards (reference: gradient card + artwork burst) ---------- */
 
 .editorial-track {
-  display: flex;
+  /* Adapt to the central column: three cards fit whenever the width allows
+     (auto-fit collapses the empty track on wide screens); otherwise columns
+     reflow to two instead of clipping a card behind the rail. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
   gap: var(--space-6);
   overflow-x: auto;
   overflow-y: hidden;
@@ -480,11 +494,8 @@ a.section-title:hover {
 
 .editorial-card {
   position: relative;
-  /* Flexible pair: both hero cards share the central column width evenly
-     (capped so the reference proportions hold on very wide screens). */
-  flex: 1 1 380px;
-  min-width: min(340px, 86vw);
-  max-width: 640px;
+  container-type: inline-size;
+  min-width: 0;
   min-height: 200px;
   scroll-snap-align: start;
   padding: 26px 28px;
@@ -510,9 +521,9 @@ a.section-title:hover {
 
 .editorial-card .ed-title {
   margin-top: 6px;
-  /* Reserve the artwork cluster (art clamp + 22px inset + 16px gutter, minus
+  /* Reserve the artwork cluster (art 30% + 22px inset + 16px gutter, minus
      the card's 28px left padding) so the title can never run under it. */
-  max-width: calc(100% - clamp(130px, calc(27% + 26px), 180px));
+  max-width: calc(100% - clamp(106px, calc(30% + 27px), 180px));
   font-size: var(--text-title1);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -522,9 +533,20 @@ a.section-title:hover {
 
 .editorial-card .ed-sub {
   margin-top: 6px;
-  max-width: calc(100% - clamp(130px, calc(27% + 26px), 180px));
+  max-width: calc(100% - clamp(106px, calc(30% + 27px), 180px));
   font-size: var(--text-subhead);
   color: rgba(255, 255, 255, 0.9);
+}
+
+/* Three-up cards at ~1536px are narrow: step the title down the existing
+   type scale so it wraps in two lines instead of four (desktop only — the
+   mobile snap cards keep the full-size title). */
+@media (min-width: 641px) {
+  @container (max-width: 340px) {
+    .editorial-card .ed-title {
+      font-size: var(--text-title3);
+    }
+  }
 }
 
 /* Reference CTA: white pill with a play mark. */
@@ -563,7 +585,7 @@ a.section-title:hover {
   right: 22px;
   top: -16px;
   bottom: 18px;
-  width: clamp(120px, 27%, 170px);
+  width: clamp(96px, 30%, 170px);
   pointer-events: none;
 }
 
@@ -614,6 +636,10 @@ a.section-title:hover {
 }
 
 @media (max-width: 640px) {
+  .editorial-track {
+    display: flex;
+  }
+
   .editorial-card {
     flex: 0 0 100%;
     min-width: 0;
@@ -632,11 +658,19 @@ a.section-title:hover {
   }
 }
 
+/* Two-column band (≈641–1509px): the third hero spans the full row so the
+   grid never leaves an empty half-cell beside it. */
+@media (min-width: 641px) and (max-width: 1509px) {
+  .editorial-card:last-child:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ---------- Song rows (reference: 2-column compact lists, borderless) ---------- */
 
 .song-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
   column-gap: var(--space-6);
   padding: 0 var(--content-gutter);
 }
@@ -681,17 +715,19 @@ a.section-title:hover {
   background: var(--color-surface2);
 }
 
-/* Desktop centre column is wider now: grid rows get slightly larger art and
-   more breathing room. Rail and language-shelf rows keep the 40px treatment;
-   the mobile layout is unchanged (breakpoint below mirrors the grid change). */
+/* Desktop centre column is wider now: grid and language-shelf rows share one
+   treatment (larger art, more breathing room). The mobile layout is unchanged
+   (breakpoint below mirrors the grid change). */
 @media (min-width: 641px) {
-  .song-grid .song-row {
+  .song-grid .song-row,
+  .lang-shelf .carousel-track .song-row {
     grid-template-columns: 44px minmax(0, 1fr) auto auto;
     min-height: 60px;
     padding: 8px 12px;
   }
 
-  .song-grid .song-row .row-art {
+  .song-grid .song-row .row-art,
+  .lang-shelf .carousel-track .song-row .row-art {
     width: 44px;
     height: 44px;
   }
