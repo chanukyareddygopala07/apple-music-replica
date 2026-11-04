@@ -10,6 +10,8 @@ import { icon, type IconName } from '@/ui/icons'
 import { on, qs } from '@/ui/el'
 import { openFormDialog } from '@/ui/dialog'
 import { createPlayerBar } from '@/ui/player-bar'
+import { createNowRail } from '@/ui/now-rail'
+import { revealHeading, staggerView, prefersReducedMotion } from '@/ui/reveal'
 import { createNowPlaying } from '@/views/now-playing'
 import { bindGlobalActions } from '@/app/actions'
 import { renderHome } from '@/views/home'
@@ -98,20 +100,41 @@ export interface Shell {
 export function startShell(root: HTMLElement): Shell {
   root.classList.add('app-root')
   root.innerHTML = `
-    <div class="app-layout">
-      ${sidebarHtml()}
-      <main class="app-main" id="main-content">
-        <div class="view-scroll" data-view-host></div>
-      </main>
+    <div class="app-frame">
+      <div class="app-layout">
+        ${sidebarHtml()}
+        <main class="app-main" id="main-content">
+          <div class="view-scroll" data-view-host></div>
+        </main>
+      </div>
+      <header class="top-bar">
+        <div class="top-search-cell">
+          <form class="top-search" role="search" data-top-search>
+            ${icon('search')}
+            <label class="sr-only" for="top-search-input">Search music</label>
+            <input id="top-search-input" type="search" name="q" placeholder="Search" autocomplete="off" />
+          </form>
+        </div>
+        <div class="user-chip-cell">
+          <button type="button" class="user-chip" data-action="settings" aria-label="Account and settings">
+            <span>Listener</span>
+            <span class="chip-avatar" aria-hidden="true">${icon('sparkle')}</span>
+          </button>
+        </div>
+      </header>
+      <div data-player-slot></div>
     </div>
     ${mobileChromeHtml()}
-    <div data-player-slot></div>
     <div data-np-slot></div>`
 
   const host = qs<HTMLElement>('[data-view-host]', root)!
   const playerBar = createPlayerBar(player)
   qs<HTMLElement>('[data-player-slot]', root)!.appendChild(playerBar.el)
   playerBar.el.hidden = true
+
+  // Right rail: reference "Now playing" queue column (grid column 3).
+  const rail = createNowRail(player)
+  qs<HTMLElement>('.app-layout', root)!.appendChild(rail.el)
 
   const nowPlaying = createNowPlaying(player, () => {
     if (window.history.length > 1) sharedRouter.back()
@@ -194,13 +217,25 @@ export function startShell(root: HTMLElement): Shell {
     on(root, 'click', '.mobile-drawer a[data-nav]', () => setDrawer(false)),
   )
 
+  /* ---------- top-bar search ---------- */
+  unsubs.push(
+    on(root, 'submit', '[data-top-search]', (_el, ev) => {
+      ev.preventDefault()
+      const input = qs<HTMLInputElement>('#top-search-input', root)
+      const q = (input?.value ?? '').trim()
+      if (q) sharedRouter.navigate(`/search?q=${encodeURIComponent(q)}`)
+    }),
+  )
+
   /* ---------- player <-> library + prefs ---------- */
   let lastRecordedSong: string | null = null
   unsubs.push(
     player.subscribe((snap) => {
       playerBar.update(snap)
       playerBar.el.hidden = !snap.currentSongId
+      rail.update(snap)
     }),
+    player.subscribeTick((snap) => rail.update(snap)),
     player.subscribe((snap) => {
       if (!snap.currentSongId) return
       const song = snap.currentSongId
@@ -217,6 +252,7 @@ export function startShell(root: HTMLElement): Shell {
 
   /* ---------- router ---------- */
   let renderToken = 0
+  let routeAbort: AbortController | null = null
   const renderRoute = (route: Route): void => {
     markActiveNav()
     if (route.name === 'now-playing') {
@@ -224,60 +260,119 @@ export function startShell(root: HTMLElement): Shell {
       sharedRouter.setRouteTitle('Now Playing')
       return
     }
+    // Supersede any in-flight view render: aborts its YouTube mount (so a
+    // stale /watch can never replace the committed route's player).
+    routeAbort?.abort()
+    routeAbort = new AbortController()
+    const signal = routeAbort.signal
     nowPlaying.close()
     destroyYouTubeEmbed()
     const token = ++renderToken
     void (async () => {
+      // Outgoing wipe (reference): clip the current view toward the left edge.
+      // Runs in parallel with the incoming render; skipped under reduced motion.
+      // Only home wraps its content in `.view`; every other view renders
+      // directly into its slot, so the committed slot itself is the reliable
+      // outgoing element for all routes.
+      const prevSlot = host.querySelector<HTMLElement>(
+        ':scope > .view-slot:not(.is-staging), :scope > .view',
+      )
+      // Block focus/interaction on the dying view, and drop its element IDs so
+      // the staged view can mount the same IDs (#search-input, …) without a
+      // duplicate-ID window while both slots are briefly in the document.
+      if (prevSlot) {
+        prevSlot.setAttribute('inert', '')
+        prevSlot.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'))
+      }
+      const wipeTarget = prevSlot?.querySelector<HTMLElement>('.view') ?? prevSlot
+      const wipeDone =
+        wipeTarget && !prefersReducedMotion()
+          ? (wipeTarget.classList.add('view-leaving'),
+            new Promise<void>((r) => window.setTimeout(r, 200)))
+          : Promise.resolve()
+      // Stage the incoming view in-DOM (invisible overlay) so async work that
+      // needs a live document — YouTube iframes, input focus — behaves
+      // normally. `inert` keeps the invisible staging slot out of the tab
+      // order and the accessibility tree until commit. Each route owns its
+      // slot: a slow, stale render can only write into its own (discarded)
+      // slot, never clobber a newer route.
+      const next = document.createElement('div')
+      next.className = 'view-slot is-staging'
+      next.setAttribute('inert', '')
+      host.appendChild(next)
       switch (route.name) {
         case 'home':
           sharedRouter.setRouteTitle('Home')
-          await renderHome(host)
+          await renderHome(next)
           break
         case 'browse':
           sharedRouter.setRouteTitle('Browse')
-          await renderBrowse(host)
+          await renderBrowse(next)
           break
         case 'radio':
           sharedRouter.setRouteTitle('Radio')
-          await renderRadio(host)
+          await renderRadio(next)
           break
         case 'search':
           sharedRouter.setRouteTitle(route.q ? `Search “${route.q}”` : 'Search')
-          await renderSearch(host, route.q, { lang: route.lang, src: route.src })
+          await renderSearch(next, route.q, { lang: route.lang, src: route.src })
           break
         case 'library':
           sharedRouter.setRouteTitle('Library')
-          await renderLibrary(host, route.tab)
+          await renderLibrary(next, route.tab)
           break
         case 'album':
-          await renderAlbum(host, route.id)
+          await renderAlbum(next, route.id)
           break
         case 'artist':
-          await renderArtist(host, route.id)
+          await renderArtist(next, route.id)
           break
         case 'playlist':
-          await renderPlaylist(host, route.id)
+          await renderPlaylist(next, route.id)
           break
         case 'song':
-          await renderSong(host, route.id)
+          await renderSong(next, route.id)
           break
         case 'genre':
-          await renderGenre(host, route.id)
+          await renderGenre(next, route.id)
           break
         case 'watch':
           sharedRouter.setRouteTitle('YouTube')
-          await renderWatch(host, route.id)
+          await renderWatch(next, route.id, { signal })
           break
         case 'not-found':
           sharedRouter.setRouteTitle('Not Found')
-          renderNotFound(host, route.path)
+          renderNotFound(next, route.path)
           break
       }
-      if (token === renderToken) {
-        host.scrollTop = 0
-        const h1 = host.querySelector('h1')
-        sharedRouter.setRouteTitle(h1?.textContent?.trim() ?? '')
+      await wipeDone
+      if (token !== renderToken) {
+        next.remove()
+        return
       }
+      // Commit: drop every earlier slot, then reveal the staged view.
+      host.querySelectorAll<HTMLElement>(':scope > *').forEach((el) => {
+        if (el !== next) el.remove()
+      })
+      next.removeAttribute('inert')
+      next.classList.remove('is-staging')
+      host.scrollTop = 0
+      // Autofocus after commit (inert blocks focus() during staging). Never
+      // yank focus out of a text field the user is still typing in (e.g. the
+      // top-bar search submit); otherwise move focus into the new view.
+      const active = document.activeElement as HTMLElement | null
+      const typing =
+        active !== null &&
+        !next.contains(active) &&
+        active.matches('input:not([type="button"], [type="submit"]), textarea, [contenteditable="true"]')
+      if (!typing) {
+        const auto = next.querySelector<HTMLElement>('[data-autofocus]')
+        auto?.focus()
+      }
+      const h1 = next.querySelector('h1')
+      if (h1) revealHeading(h1)
+      if (!prefersReducedMotion()) staggerView(next.querySelector<HTMLElement>('.view') ?? next)
+      if (h1) sharedRouter.setRouteTitle(h1.textContent?.trim() ?? '')
     })()
   }
 
@@ -347,8 +442,9 @@ export function startShell(root: HTMLElement): Shell {
         break
       case '/':
         ev.preventDefault()
+        // Search autofocuses on commit via [data-autofocus] (inert blocks
+        // focus() during the staged render).
         sharedRouter.navigate('/search')
-        window.setTimeout(() => qs<HTMLInputElement>('[data-search-input]')?.focus(), 50)
         break
       case 'Escape':
         if (!nowPlaying.el.hidden) sharedRouter.back()

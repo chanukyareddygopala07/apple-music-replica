@@ -42,6 +42,8 @@ export interface YoutubeSnippet {
   channelId?: string
   publishedAt?: string
   liveBroadcastContent?: string
+  /** `videos.list` only — the uploader's declared audio language (BCP-47). */
+  defaultAudioLanguage?: string
   thumbnails?: {
     default?: YoutubeThumbnail
     medium?: YoutubeThumbnail

@@ -1,15 +1,34 @@
-/* App shell: sidebar, mobile chrome, persistent player bar, view host. */
+/* App shell: sage stage, floating app card, sidebar + center + now-playing rail,
+   top bar, mobile chrome, persistent player bar, view host. */
 
 .app-root {
   height: 100dvh;
   display: block;
-  background: var(--color-bg);
+  background: var(--color-stage);
+}
+
+/* Floating app card (reference: rounded, inset, large shadow). */
+.app-frame {
+  position: relative;
+  height: calc(100dvh - 2 * var(--frame-y));
+  margin: var(--frame-y) var(--frame-x);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-frame);
+  animation: frame-in 640ms var(--ease-out) both;
+}
+
+@keyframes frame-in {
+  from {
+    transform: translateY(calc(100% + var(--frame-y)));
+  }
 }
 
 .app-layout {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr;
-  height: 100dvh;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--rail-width);
+  height: 100%;
 }
 
 /* ---------- Sidebar ---------- */
@@ -19,12 +38,16 @@
   z-index: 30;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  min-height: 0;
+  height: 100%;
   padding: var(--space-6) var(--space-3) var(--space-3);
-  background: var(--color-surface-translucent);
-  backdrop-filter: saturate(180%) blur(28px);
-  -webkit-backdrop-filter: saturate(180%) blur(28px);
-  border-right: 1px solid var(--color-hairline);
+  background: var(--color-surface);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.sidebar::-webkit-scrollbar {
+  display: none;
 }
 
 .sidebar-brand {
@@ -42,7 +65,7 @@
   width: 26px;
   height: 26px;
   flex: none;
-  color: var(--color-accent);
+  color: var(--color-accent-fg);
 }
 
 .sidebar-search {
@@ -85,7 +108,7 @@
 }
 
 .nav-item[aria-current='page'] svg {
-  color: var(--color-accent);
+  color: var(--color-accent-fg);
 }
 
 .sidebar-section {
@@ -121,21 +144,39 @@
 
 .app-main {
   position: relative;
-  height: 100dvh;
+  min-width: 0;
+  height: 100%;
   overflow: hidden;
   background: var(--color-bg);
+  border-top-left-radius: 16px;
 }
 
 .view-scroll {
+  position: relative; /* anchors the in-DOM staging overlay during route changes */
   height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-behavior: smooth;
+  padding-top: var(--top-bar-height);
   padding-bottom: calc(var(--player-height) + var(--space-9));
 }
 
 .view {
   min-height: 100%;
+}
+
+/* Incoming route renders here first: an invisible overlay so iframes and
+   focus work in-DOM, then it is revealed (staging class removed) on commit. */
+.view-slot {
+  min-height: 100%;
+}
+
+.view-slot.is-staging {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .page-gutter {
@@ -144,11 +185,11 @@
 }
 
 .page-title {
-  font-size: var(--text-large-title);
+  font-size: var(--text-title1);
   font-weight: 700;
   letter-spacing: -0.022em;
   line-height: 1.1;
-  padding: var(--space-7) var(--content-gutter) var(--space-5);
+  padding: var(--space-6) var(--content-gutter) var(--space-5);
 }
 
 .page-subtitle {
@@ -169,6 +210,267 @@
   color: var(--hero-text);
 }
 
+/* ---------- Top bar (search underline + user chip) ---------- */
+
+.top-bar {
+  position: absolute;
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  height: var(--top-bar-height);
+  z-index: 40;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-width);
+}
+
+.top-search-cell {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--content-gutter);
+  background: var(--color-bg);
+  min-width: 0;
+}
+
+.top-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding-bottom: 10px;
+  border-bottom: 1.5px solid var(--color-underline);
+  color: var(--color-text-secondary);
+}
+
+.top-search svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.top-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: var(--text-subhead);
+  color: var(--color-text);
+}
+
+.top-search input::placeholder {
+  color: var(--color-search-placeholder);
+}
+
+.top-search input:focus-visible {
+  outline: 2px solid var(--color-accent-fg);
+  outline-offset: 3px;
+}
+
+.user-chip-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 20px;
+  background: var(--color-surface2);
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 4px 4px 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  color: var(--color-text);
+  transition: background var(--motion-fast) var(--ease-out);
+}
+
+.user-chip:hover {
+  background: var(--color-hover);
+}
+
+.user-chip .chip-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent), #b06cf0);
+  color: #fff;
+}
+
+.user-chip .chip-avatar svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Right rail: Now playing queue ---------- */
+
+.side-rail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-surface2);
+  padding-top: var(--top-bar-height);
+}
+
+.rail-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) 20px var(--space-2);
+}
+
+.rail-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.rail-view-all {
+  font-size: var(--text-footnote);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.rail-view-all:hover {
+  color: var(--color-text);
+}
+
+.rail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 12px calc(var(--player-height) + var(--space-6));
+}
+
+.rail-empty {
+  padding: var(--space-5) var(--space-2);
+  font-size: var(--text-footnote);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+/* Rail rows reuse .song-row, restyled as the reference "Now playing" list. */
+.rail-rows .song-row {
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  border-bottom: none;
+  border-radius: 8px;
+  min-height: 56px;
+  padding: var(--space-1) var(--space-2);
+}
+
+.rail-rows .song-row .row-more {
+  display: none;
+}
+
+.rail-rows .song-row.is-current {
+  background: var(--color-row-current);
+}
+
+.rail-rows .song-row.is-current .row-duration {
+  color: #fff;
+}
+
+.rail-rows .song-row.is-current .row-sub {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Artwork cell with the playing equalizer overlay. */
+.row-art-wrap {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.row-art-wrap .row-art {
+  position: absolute;
+  inset: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--color-bg);
+}
+
+.eq-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.eq-bars i {
+  width: 3.5px;
+  height: 20px;
+  border-radius: 2px;
+  background: #fff;
+  transform: scaleY(0.35);
+  transform-origin: center;
+  animation: eq-bounce 900ms ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+
+.eq-bars i:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.eq-bars i:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+.eq-bars i:nth-child(4) {
+  animation-delay: 90ms;
+}
+
+.eq-bars i:nth-child(5) {
+  animation-delay: 220ms;
+}
+
+/* Real playback state gates the motion — never a fake loop. */
+.side-rail[data-playing='true'] .eq-bars i {
+  animation-play-state: running;
+}
+
+@keyframes eq-bounce {
+  from {
+    transform: scaleY(0.3);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* ---------- Tablet: drop the rail (reference stays faithful on desktop) ---------- */
+
+@media (max-width: 1180px) {
+  .app-layout {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  }
+
+  .side-rail {
+    display: none;
+  }
+
+  .top-bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-chip-cell {
+    display: none;
+  }
+}
+
 /* ---------- Mobile chrome ---------- */
 
 .mobile-topbar,
@@ -179,12 +481,28 @@
 }
 
 @media (max-width: 833px) {
+  .app-frame {
+    margin: 0;
+    height: 100dvh;
+    border-radius: 0;
+    box-shadow: none;
+    animation: none;
+  }
+
   .app-layout {
     grid-template-columns: 1fr;
   }
 
   .sidebar {
     display: none;
+  }
+
+  .top-bar {
+    display: none;
+  }
+
+  .app-main {
+    border-top-left-radius: 0;
   }
 
   .mobile-topbar {
@@ -215,7 +533,7 @@
   .mobile-topbar .brand svg {
     width: 22px;
     height: 22px;
-    color: var(--color-accent);
+    color: var(--color-accent-fg);
   }
 
   .view-scroll {
@@ -274,7 +592,7 @@
   }
 
   .mobile-tab[aria-current='page'] {
-    color: var(--color-accent);
+    color: var(--color-accent-fg);
     font-weight: 600;
   }
 
@@ -316,24 +634,34 @@
   }
 }
 
-/* ---------- Player bar ---------- */
+/* ---------- Player bar (frosted, bottom of the card; progress on top edge) ---------- */
 
 .player-bar {
-  position: fixed;
+  position: absolute;
   left: var(--sidebar-width);
   right: 0;
   bottom: 0;
   z-index: 70;
   height: var(--player-height);
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(320px, 2fr) minmax(180px, 1fr);
+  grid-template-columns: minmax(180px, 1fr) minmax(280px, 2fr) minmax(220px, 1fr);
   align-items: center;
   gap: var(--space-4);
   padding: 0 var(--space-5);
   background: var(--color-player-bg);
-  backdrop-filter: saturate(180%) blur(24px);
-  -webkit-backdrop-filter: saturate(180%) blur(24px);
-  border-top: 1px solid var(--color-hairline);
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+}
+
+/* Rises into place with the first track (real state, not a decorative loop). */
+.player-bar:not([hidden]) {
+  animation: player-rise 700ms var(--ease-out);
+}
+
+@keyframes player-rise {
+  from {
+    transform: translateY(110%);
+  }
 }
 
 .player-bar[hidden] {
@@ -343,6 +671,7 @@
 @media (max-width: 833px) {
   .player-bar {
     left: 0;
+    right: 0;
     bottom: calc(var(--mobile-tabs-height) + env(safe-area-inset-bottom, 0px));
     height: var(--mobile-player-height);
     grid-template-columns: 1fr auto;

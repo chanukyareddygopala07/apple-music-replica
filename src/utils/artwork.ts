@@ -160,6 +160,73 @@ export function gradientCss(seed: string): string {
   return `linear-gradient(135deg, ${from}, ${to})`
 }
 
+/**
+ * WCAG relative luminance of a #rrggbb colour.
+ */
+function relativeLuminance(hex: string): number {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex)
+  if (!m) return 0
+  const n = parseInt(m[1]!, 16)
+  const channel = (v: number): number => {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  const r = channel((n >> 16) & 0xff)
+  const g = channel((n >> 8) & 0xff)
+  const b = channel(n & 0xff)
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/**
+ * Largest relative luminance a background may reach while `rgba(255,255,255,0.9)`
+ * small text on it still clears WCAG AA 4.5:1 (0.150 at exactly 4.5:1; 0.145
+ * keeps margin for colour (not just grey) backgrounds and hex rounding).
+ */
+export const WHITE_TEXT_MAX_LUMINANCE = 0.145
+
+/**
+ * Darken a colour (scaling R:G:B, which preserves hue and saturation) until its
+ * relative luminance is at or below the white-text band. Colours already inside
+ * the band are returned unchanged. Used for every background that carries white
+ * text: hero page gradients, editorial cards, category washes, playlist cards.
+ */
+export function fitForWhiteText(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex)
+  if (!m) return hex
+  const n = parseInt(m[1]!, 16)
+  const rgb: [number, number, number] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
+  if (relativeLuminance(hex) <= WHITE_TEXT_MAX_LUMINANCE) return hex.toLowerCase()
+  // Round inside the search so the tested luminance is the emitted hex's —
+  // otherwise rounding can bounce a colour back over the band forever.
+  const lumScaled = (k: number): number => {
+    const s = rgb.map((v) => Math.min(255, Math.round(v * k)))
+    const channel = (v: number): number => {
+      const c = v / 255
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    }
+    return 0.2126 * channel(s[0]!) + 0.7152 * channel(s[1]!) + 0.0722 * channel(s[2]!)
+  }
+  let lo = 0
+  let hi = 1
+  for (let i = 0; i < 40; i++) {
+    const k = (lo + hi) / 2
+    if (lumScaled(k) > WHITE_TEXT_MAX_LUMINANCE) hi = k
+    else lo = k
+  }
+  const hex2 = (v: number): string => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')
+  return `#${hex2(rgb[0]! * lo)}${hex2(rgb[1]! * lo)}${hex2(rgb[2]! * lo)}`
+}
+
+/**
+ * `gradientCss` with both stops fitted to the white-text band — for gradients
+ * that carry white text (editorial feature cards, browse/search category tiles).
+ */
+export function clampedGradientCss(seed: string): string {
+  const h = hashSeed(seed || 'realaxify')
+  const [from, to] = PALETTES[h % PALETTES.length]!
+  return `linear-gradient(135deg, ${fitForWhiteText(from)}, ${fitForWhiteText(to)})`
+}
+
 /** Hero page colours derived from a seed (album/artist/playlist theming).
  * Uses the same palette index as artworkDataUrl so heroes match their art. */
 export function heroColors(seed: string): { from: string; to: string } {

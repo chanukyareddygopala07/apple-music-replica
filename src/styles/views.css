@@ -159,7 +159,7 @@
 .artist-hero .artist-shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 30%, rgba(0, 0, 0, 0.55) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 22%, rgba(0, 0, 0, 0.42) 50%, rgba(0, 0, 0, 0.72) 100%);
 }
 
 .artist-hero h1 {
@@ -335,7 +335,7 @@
 .station-card .st-shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 35%, rgba(0, 0, 0, 0.62) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 30%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.66) 100%);
 }
 
 .station-card .live-badge {
@@ -611,7 +611,7 @@
 }
 
 .queue-row[draggable='true']:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-fg);
 }
 
 .queue-now-label {
@@ -621,7 +621,7 @@
   color: var(--color-text-secondary);
 }
 
-/* ---------- Player bar internals ---------- */
+/* ---------- Player bar internals (reference: single row, edge progress) ---------- */
 
 .player-left {
   display: flex;
@@ -633,7 +633,7 @@
 .player-left .pl-art {
   width: 40px;
   height: 40px;
-  border-radius: var(--radius-xs);
+  border-radius: 8px;
   object-fit: cover;
   background: var(--color-surface2);
   flex: none;
@@ -644,9 +644,10 @@
 }
 
 .player-left .pl-title {
-  font-size: var(--text-footnote);
+  font-size: var(--text-subhead);
   font-weight: 600;
   line-height: 1.3;
+  color: var(--color-text);
 }
 
 .player-left .pl-title:hover {
@@ -654,67 +655,113 @@
 }
 
 .player-left .pl-artist {
-  font-size: var(--text-caption2);
+  font-size: var(--text-caption);
   color: var(--color-text-secondary);
   line-height: 1.3;
 }
 
 .player-center {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
   min-width: 0;
   width: 100%;
-  max-width: 640px;
-  margin: 0 auto;
 }
 
 .player-transport {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 18px;
+}
+
+.player-transport .icon-btn {
+  color: #e6e6ea;
+}
+
+.player-transport .icon-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .player-transport .play-btn {
-  width: 32px;
-  height: 32px;
-  color: var(--color-text);
+  width: 48px;
+  height: 48px;
+  background: #fff;
+  color: #141416;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: transform var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out);
 }
 
 .player-transport .play-btn svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 
-.player-progress {
-  display: grid;
-  grid-template-columns: 40px 1fr 40px;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
+.player-transport .play-btn:hover {
+  background: #f2f2f2;
+  transform: scale(1.04);
+  color: #141416;
 }
 
-.player-progress .time {
-  font-size: var(--text-caption2);
-  color: var(--color-text-secondary);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+.player-transport .play-btn:active {
+  transform: scale(0.97);
 }
 
+.player-transport .play-btn:disabled {
+  opacity: 0.5;
+}
+
+/* General in-player sliders (volume); the edge seek overrides below. */
+.player-bar .slider .track {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.player-bar .slider .fill {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.player-bar .slider.accent .fill {
+  background: #fff;
+}
+
+/* Seek lives on the top edge (reference): thin blue progress line. */
 .player-edge-progress {
   position: absolute;
-  top: -1px;
+  top: 0;
   left: 0;
   right: 0;
-  height: 2px;
-  pointer-events: none;
+  z-index: 2;
+  pointer-events: auto;
 }
 
-.player-edge-progress .edge-fill {
-  height: 100%;
-  background: var(--color-accent);
-  width: 0%;
+.player-edge-progress .slider {
+  height: 14px;
+  align-items: flex-start;
+}
+
+.player-edge-progress .slider .track {
+  height: 3px;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.18);
+  transition: height var(--motion-fast) var(--ease-out);
+}
+
+.player-edge-progress .slider:hover .track,
+.player-edge-progress .slider:focus-visible .track {
+  height: 5px;
+}
+
+.player-edge-progress .slider .fill {
+  background: var(--color-progress);
+}
+
+.player-edge-progress .slider:focus-within {
+  outline: none;
+}
+
+.player-edge-progress .slider:focus-visible .track,
+.player-edge-progress .slider:focus-within .track {
+  background: rgba(255, 255, 255, 0.32);
 }
 
 .player-right {
@@ -739,7 +786,6 @@
 
 @media (max-width: 833px) {
   .player-center,
-  .player-progress,
   .player-right .desktop-only {
     display: none;
   }
@@ -759,3 +805,23 @@
 }
 
 /* Explicit badge inside player uses shared class */
+
+/* ---------- Now playing: contrast over the hero gradient + glass panel ---------- */
+
+.now-playing .icon-btn,
+.now-playing .icon-btn:hover {
+  color: var(--hero-text-secondary);
+}
+
+.now-playing .icon-btn[aria-pressed='true'] {
+  color: #e0d7ff;
+}
+
+/* Panel copy sits on stop + 0.16 black; lift secondary ink to clear 4.5:1. */
+.np-side {
+  --color-text-secondary: rgba(255, 255, 255, 0.78);
+}
+
+.now-playing .queue-row:focus-visible {
+  outline-color: #e0d7ff;
+}

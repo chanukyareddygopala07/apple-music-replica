@@ -152,6 +152,40 @@ describe('toYoutubeSong / youtubeSongFromVideo', () => {
     expect(youtubeSongFromVideo(undefined)).toBeNull()
     expect(youtubeSongFromVideo({ id: 'dQw4w9WgXcQ' })).toBeNull()
   })
+
+  it('labels the song from the companion videos.list defaultAudioLanguage (verified)', () => {
+    for (const language of ['te', 'hi', 'ta'] as const) {
+      const song = toYoutubeSong(searchItem, { durationMs: 213_000, language })
+      expect(song).toMatchObject({ language, languageStatus: 'verified' })
+    }
+  })
+
+  it('falls back to the snippet defaultAudioLanguage when no companion fact exists', () => {
+    const withSnippetLang: YoutubeSearchItem = {
+      ...searchItem,
+      snippet: { ...searchItem.snippet, defaultAudioLanguage: 'pt-BR' },
+    }
+    const song = toYoutubeSong(withSnippetLang)
+    expect(song).toMatchObject({ language: 'pt', languageStatus: 'verified' })
+  })
+
+  it('leaves unmappable languages unlabelled (a track is never mislabelled)', () => {
+    expect(toYoutubeSong(searchItem, { language: 'ceb' })).not.toHaveProperty('language')
+    const junk: YoutubeSearchItem = {
+      ...searchItem,
+      snippet: { ...searchItem.snippet, defaultAudioLanguage: 'other' },
+    }
+    expect(toYoutubeSong(junk)).not.toHaveProperty('language')
+  })
+
+  it('youtubeSongFromVideo reads the detail snippet language too', () => {
+    const video: YoutubeVideoItem = {
+      id: 'dQw4w9WgXcQ',
+      snippet: { ...searchItem.snippet, defaultAudioLanguage: 'hi' },
+      contentDetails: { duration: 'PT3M33S' },
+    }
+    expect(youtubeSongFromVideo(video)).toMatchObject({ language: 'hi', languageStatus: 'verified' })
+  })
 })
 
 describe('channel and single-video album helpers', () => {

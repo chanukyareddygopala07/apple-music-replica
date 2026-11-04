@@ -33,7 +33,12 @@ const STATE_STATUS: Record<'playing' | 'paused' | 'buffering' | 'ended', string>
   ended: 'Ended',
 }
 
-export async function renderWatch(root: HTMLElement, id: string): Promise<void> {
+export interface RenderWatchOptions {
+  /** Route-lifecycle cancellation (shell aborts when the route is superseded). */
+  signal?: AbortSignal
+}
+
+export async function renderWatch(root: HTMLElement, id: string, opts: RenderWatchOptions = {}): Promise<void> {
   player.pause()
 
   root.innerHTML = `
@@ -83,7 +88,7 @@ export async function renderWatch(root: HTMLElement, id: string): Promise<void> 
       song = null
     }
   }
-  if (!host.isConnected) return // navigated away while resolving metadata
+  if (!host.isConnected || opts.signal?.aborted) return // navigated away while resolving metadata
   sub.innerHTML = song
     ? `${escapeHtml(song.title)} · ${escapeHtml(artistNamesFor(song))} · <span class="watch-by">YouTube</span>`
     : 'YouTube video'
@@ -110,6 +115,7 @@ export async function renderWatch(root: HTMLElement, id: string): Promise<void> 
     host,
     videoId,
     privacyEnhanced,
+    signal: opts.signal,
     events: {
       onStateChange: (state: YouTubePlayerState) => {
         const label = STATE_STATUS[state as keyof typeof STATE_STATUS]
@@ -126,7 +132,7 @@ export async function renderWatch(root: HTMLElement, id: string): Promise<void> 
     },
   })
   mounted = handle
-  if (!host.isConnected) {
+  if (!host.isConnected || opts.signal?.aborted) {
     handle?.destroy()
     return
   }

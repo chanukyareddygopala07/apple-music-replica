@@ -136,3 +136,32 @@ def youtube_language(code: str) -> str | None:
     if not opt:
         return None
     return opt.relevance or opt.iso
+
+
+def track_language(raw: str | None) -> str | None:
+    """Provider-declared track language (BCP-47 / ISO 639-1) → app code.
+
+    Progressive match over the tag's subtags (longest first): app codes are
+    tried for every prefix (``zh-hans-CN`` → ``zh-Hans``), then ISO values
+    (``pt-BR`` → ``pt``). Codes outside the catalogue map to ``None`` — a
+    language is never invented or mislabelled. Mirrors
+    ``normalizeTrackLanguage`` in ``src/data/languages.ts``.
+    """
+    if not isinstance(raw, str):
+        return None
+    value = raw.strip().lower().replace("_", "-")
+    if not value or value in (ALL_LANGUAGES, "other"):
+        return None
+    parts = [part for part in value.split("-") if part]
+    if not parts:
+        return None
+    candidates = ["-".join(parts[:i]) for i in range(len(parts), 0, -1)]
+    for candidate in candidates:
+        for opt in LANGUAGES:
+            if opt.iso and opt.code.lower() == candidate:
+                return opt.code
+    for candidate in candidates:
+        for opt in LANGUAGES:
+            if opt.iso and opt.iso == candidate:
+                return opt.code
+    return None

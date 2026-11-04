@@ -18,6 +18,7 @@
 
 import type { Album, Artist, Song } from '@/domain/types'
 import type { YoutubeSearchItem, YoutubeSnippet, YoutubeVideoItem } from '@/data/youtube-client'
+import { normalizeTrackLanguage } from '@/data/languages'
 
 export const YT_SONG = 'yt-'
 export const YT_ARTIST = 'yt-artist-'
@@ -114,14 +115,24 @@ export function parseIso8601Duration(value: string | undefined): number {
   return ((days * 24 + hours) * 3600 + minutes * 60 + seconds) * 1000
 }
 
-/** Map a search result to a Song (duration filled in by the provider). */
-export function toYoutubeSong(item: YoutubeSearchItem | undefined, opts: { durationMs?: number } = {}): Song | null {
+/**
+ * Map a search result to a Song (duration filled in by the provider).
+ * `opts.language` carries the `defaultAudioLanguage` collected from the
+ * companion `videos.list` lookup; detail fetches fall back to the snippet.
+ * Values outside the language catalogue stay absent — a track without a
+ * mappable language is shown unlabelled, never mislabelled.
+ */
+export function toYoutubeSong(
+  item: YoutubeSearchItem | undefined,
+  opts: { durationMs?: number; language?: string | null } = {},
+): Song | null {
   const videoId = item?.id?.videoId
   const snippet = item?.snippet
   if (!videoId || !snippet) return null
   const title = str(snippet.title)
   if (!title) return null
   const channelId = typeof snippet.channelId === 'string' ? snippet.channelId : ''
+  const language = normalizeTrackLanguage(opts.language ?? snippet.defaultAudioLanguage)
   return {
     id: `${YT_SONG}${videoId}`,
     title,
@@ -134,6 +145,7 @@ export function toYoutubeSong(item: YoutubeSearchItem | undefined, opts: { durat
     playbackKind: 'youtube',
     artworkUrl: bestThumbnail(snippet),
     externalUrl: youtubeWatchUrl(videoId),
+    ...(language ? { language, languageStatus: 'verified' as const } : {}),
   }
 }
 

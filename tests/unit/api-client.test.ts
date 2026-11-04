@@ -223,6 +223,24 @@ describe('search + track calls', () => {
     expect(url.searchParams.get('q')).toBe('coastal')
     expect(url.searchParams.get('source')).toBe('jamendo')
     expect(url.searchParams.get('language')).toBe('fr')
+    expect(url.searchParams.get('limit')).toBeNull() // default page unless asked
+  })
+
+  it('apiSearchGroup forwards an explicit page-size limit', async () => {
+    const { calls } = stubFetch({
+      '/api/search': {
+        query: 'music',
+        language: 'all',
+        source: 'youtube',
+        hiddenSources: [],
+        groups: [
+          { source: 'youtube', name: 'YouTube', status: 'ok', results: { query: 'music', songs: [API_TRACK] } },
+        ],
+      },
+    })
+    await apiSearchGroup('youtube', 'music', 'all', undefined, 50)
+    const url = new URL(calls[0]!, 'http://localhost')
+    expect(url.searchParams.get('limit')).toBe('50')
   })
 
   it('apiSearchGroup throws on a malformed payload (caller falls back)', async () => {

@@ -1,38 +1,59 @@
-/* Realaxify design tokens — generated from replica/design/tokens.json.
-   Components consume these variables only; no raw hex in component CSS. */
+/* Realaxify design tokens — dark surfaces reproduce the Dribbble reference
+   "Music Player: animation" (Ronas IT | UI/UX Team): sage-green stage, floating
+   near-black app card (sidebar / center / now-playing rail), blue progress line,
+   coral starburst. Brand accent stays Realaxify purple. Components consume these
+   variables only; no raw hex in component CSS. */
 
 :root {
   color-scheme: light;
 
-  --color-bg: #ffffff;
-  --color-surface: #ffffff;
-  --color-surface2: #f5f5f7;
-  --color-surface-translucent: rgba(245, 245, 247, 0.72);
-  --color-border: #d8d8dc;
-  --color-border-strong: #b8b8bd;
-  --color-border-input: #86868b;
-  --color-text: #1d1d1f;
-  --color-text-secondary: #6e6e73;
-  --color-text-tertiary: #8e8e93;
+  /* Stage behind the floating app card (sage green; dark theme samples the source) */
+  --color-stage: #aec6a9;
+
+  /* App card surfaces */
+  --color-bg: #1e1e20;
+  --color-surface: #101010;
+  --color-surface2: #1f1f1f;
+  --color-surface-translucent: rgba(30, 30, 32, 0.78);
+  --color-border: #333336;
+  --color-border-strong: #48484a;
+  --color-border-input: #75757a;
+  --color-text: #f4f4f5;
+  --color-text-secondary: #9a9a9f;
+  /* ≥4.5:1 on bg/surface/surface2 in both themes; also the explicit-badge fill. */
+  --color-text-tertiary: #88888c;
   --color-accent: #6a45f2;
-  --color-accent-strong: #5a37e0;
+  --color-accent-strong: #7d5bff;
+  /* Foreground accent (text/icons/focus rings) — the fill accent only reaches
+     ~3:1 on the dark card, so interactive foregrounds use this lighter tint. */
+  --color-accent-fg: #9d8aff;
   --color-on-accent: #ffffff;
-  --color-accent-soft: #eeeaff;
-  --color-danger: #d32f33;
-  --color-success: #1f7a4d;
-  --color-warning: #8a6d1d;
+  --color-accent-soft: #2a2350;
+  --color-danger: #ff6369;
+  --color-success: #3dd68c;
+  --color-warning: #f5c451;
 
-  --color-nav-selected: rgba(0, 0, 0, 0.06);
-  --color-hover: rgba(0, 0, 0, 0.04);
-  --color-active: rgba(0, 0, 0, 0.08);
-  --color-hairline: rgba(0, 0, 0, 0.08);
-  --color-scrim: rgba(0, 0, 0, 0.4);
-  --color-player-bg: rgba(255, 255, 255, 0.86);
-  --color-glass: rgba(255, 255, 255, 0.72);
+  --color-nav-selected: rgba(255, 255, 255, 0.09);
+  --color-hover: rgba(255, 255, 255, 0.06);
+  --color-active: rgba(255, 255, 255, 0.1);
+  --color-hairline: rgba(255, 255, 255, 0.08);
+  --color-scrim: rgba(0, 0, 0, 0.55);
+  --color-player-bg: rgba(30, 30, 32, 0.72);
+  --color-glass: rgba(30, 30, 32, 0.86);
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 14px rgba(0, 0, 0, 0.06);
-  --shadow-art: 0 4px 14px rgba(0, 0, 0, 0.2);
-  --shadow-floating: 0 8px 32px rgba(0, 0, 0, 0.18);
+  /* Reference-specific accents */
+  --color-progress: #2b9be0;
+  --color-row-current: #464646;
+  --color-burst: #f98a8a;
+  --color-underline: #909090;
+  --color-search-placeholder: #88888c;
+  --color-hero-green-from: #33522f;
+  --color-hero-green-to: #456e42;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-art: 0 4px 18px rgba(0, 0, 0, 0.55);
+  --shadow-floating: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-frame: 0 40px 90px rgba(0, 0, 0, 0.38), 0 8px 24px rgba(0, 0, 0, 0.22);
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 
@@ -64,13 +85,21 @@
   --radius-md: 10px;
   --radius-lg: 12px;
   --radius-pill: 999px;
+  --radius-hero: 16px;
+  --radius-card: 28px;
 
-  --sidebar-width: 260px;
-  --player-height: 72px;
+  /* Floating app frame (reference: ~5.6% x / ~8.3% y margins) */
+  --frame-x: min(5.6vw, 72px);
+  --frame-y: min(8.3vh, 80px);
+  --sidebar-width: 210px;
+  --rail-width: 320px;
+  --top-bar-height: 80px;
+  --player-height: 73px;
   --mobile-topbar-height: 52px;
   --mobile-tabs-height: 52px;
   --mobile-player-height: 64px;
-  --content-gutter: 40px;
+  --content-gutter: 32px;
+  --content-gutter-mobile: 16px;
 
   --motion-fast: 120ms;
   --motion-base: 180ms;
@@ -89,33 +118,12 @@
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --color-bg: #000000;
-  --color-surface: #161618;
-  --color-surface2: #1c1c1e;
-  --color-surface-translucent: rgba(38, 38, 40, 0.62);
-  --color-border: #3a3a3c;
-  --color-border-strong: #48484a;
-  --color-border-input: #636366;
-  --color-text: #ebebf0;
-  --color-text-secondary: #98989d;
-  --color-text-tertiary: #6e6e73;
-  --color-accent: #9d86ff;
-  --color-accent-strong: #b09bff;
-  --color-on-accent: #ffffff;
-  --color-accent-soft: #2a2350;
-  --color-danger: #ff6369;
-  --color-success: #3dd68c;
-  --color-warning: #f5c451;
+  /* Sampled from the reference frame */
+  --color-stage: #99b599;
 
-  --color-nav-selected: rgba(255, 255, 255, 0.1);
-  --color-hover: rgba(255, 255, 255, 0.06);
-  --color-active: rgba(255, 255, 255, 0.1);
-  --color-hairline: rgba(255, 255, 255, 0.12);
-  --color-scrim: rgba(0, 0, 0, 0.55);
-  --color-player-bg: rgba(22, 22, 24, 0.88);
-  --color-glass: rgba(28, 28, 30, 0.72);
-
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.45);
-  --shadow-art: 0 4px 18px rgba(0, 0, 0, 0.55);
-  --shadow-floating: 0 8px 32px rgba(0, 0, 0, 0.5);
+  /* The reference design is a dark card; the Appearance toggle shifts the
+     stage tint and lifts the card surfaces a touch. */
+  --color-surface: #131313;
+  --color-surface2: #212124;
+  --color-bg: #1e1e20;
 }

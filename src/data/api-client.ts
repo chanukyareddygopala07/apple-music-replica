@@ -487,14 +487,17 @@ export function mapGroupedResponse(raw: unknown, fallbackQuery: string): Grouped
  * Search one remote source through the API. Throws on transport/HTTP errors —
  * the caller (catalogue facade) falls back to the direct browser provider.
  * `signal` cancels a search the user has already superseded (new keystroke).
+ * `limit` widens the per-source page (the backend caps it at 50).
  */
 export async function apiSearchGroup(
   source: RemoteApiSource,
   query: string,
   language: string,
   signal?: AbortSignal,
+  limit?: number,
 ): Promise<SearchGroup> {
   const params = new URLSearchParams({ q: query, source, language })
+  if (limit) params.set('limit', String(limit))
   const body = await fetchJson(`/api/search?${params.toString()}`, { signal, retryOnTimeout: true })
   const grouped = mapGroupedResponse(body, query)
   const group = grouped?.groups.find((g) => g.source === source)

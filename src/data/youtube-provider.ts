@@ -45,6 +45,7 @@ import {
   youtubeVideoId,
   toYoutubeArtist,
   toYoutubeSong,
+  parseIso8601Duration,
 } from '@/data/youtube-normalize'
 import { registerRemoteEntities, remoteAlbum, remoteArtist, remoteSong } from '@/data/remote-registry'
 import { youtubeLanguage } from '@/data/languages'
@@ -116,19 +117,32 @@ export class YoutubeProvider implements CatalogProvider {
     }
   }
 
-  /** Durations (1 cheap videos.list call); a failure never fails the search. */
-  private async withDurations(items: YoutubeSearchItem[]): Promise<number[]> {
+  /**
+   * Durations + declared audio languages from one cheap videos.list call.
+   * A failure never fails the search — rows then show no duration and no
+   * language, never a guessed one.
+   */
+  private async withVideoFacts(
+    items: YoutubeSearchItem[],
+  ): Promise<Map<string, { durationMs: number; language?: string }>> {
+    const facts = new Map<string, { durationMs: number; language?: string }>()
     const ids = items.map((i) => i.id?.videoId).filter((id): id is string => Boolean(id))
-    if (ids.length === 0) return []
+    if (ids.length === 0) return facts
     let videos: YoutubeVideoItem[] = []
     try {
       videos = await this.client.getVideos(ids)
     } catch {
-      return []
+      return facts
     }
     this.rememberMadeForKids(videos)
-    const byId = new Map(videos.map((v) => [v.id ?? '', v]))
-    return ids.map((id) => youtubeSongFromVideo(byId.get(id))?.durationMs ?? 0)
+    for (const video of videos) {
+      if (!video.id) continue
+      facts.set(video.id, {
+        durationMs: parseIso8601Duration(video.contentDetails?.duration),
+        language: video.snippet?.defaultAudioLanguage,
+      })
+    }
+    return facts
   }
 
   /** Grouped-search entry: language → relevanceLanguage, cursor → pageToken. */
@@ -147,13 +161,18 @@ export class YoutubeProvider implements CatalogProvider {
       cursor: opts.cursor,
       limit: opts.limit ?? 10,
     })
-    const durations = await this.withDurations(items)
+    const facts = await this.withVideoFacts(items)
 
     const songs: Song[] = []
     const artists: Artist[] = []
     const seenArtists = new Set<string>()
-    items.forEach((item, i) => {
-      const song = toYoutubeSong(item, { durationMs: durations[i] ?? 0 })
+    items.forEach((item) => {
+      const videoId = item.id?.videoId ?? ''
+      const fact = videoId ? facts.get(videoId) : undefined
+      const song = toYoutubeSong(item, {
+        durationMs: fact?.durationMs ?? 0,
+        language: fact?.language,
+      })
       if (!song) return
       songs.push(song)
       const channelId = song.artistIds[0]?.slice(YT_ARTIST.length) ?? ''

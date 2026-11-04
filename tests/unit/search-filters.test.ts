@@ -5,6 +5,7 @@ import {
   jamendoLanguage,
   languageLabel,
   normalizeLanguage,
+  normalizeTrackLanguage,
   songMatchesLanguage,
   youtubeLanguage,
 } from '@/data/languages'
@@ -46,6 +47,34 @@ describe('language options', () => {
     expect(youtubeLanguage('zh-Hans')).toBe('zh-Hans')
     expect(youtubeLanguage('fr')).toBe('fr')
     expect(youtubeLanguage('other')).toBeUndefined()
+  })
+})
+
+describe('normalizeTrackLanguage (provider-declared track language → app code)', () => {
+  it('keeps simple codes and normalises case/region variants', () => {
+    expect(normalizeTrackLanguage('te')).toBe('te')
+    expect(normalizeTrackLanguage('ta')).toBe('ta')
+    expect(normalizeTrackLanguage('ta-LK')).toBe('ta') // region collapses to ISO base
+    expect(normalizeTrackLanguage('EN')).toBe('en')
+    expect(normalizeTrackLanguage('pt-BR')).toBe('pt') // region collapses to ISO base
+    expect(normalizeTrackLanguage('fr-CA')).toBe('fr')
+    expect(normalizeTrackLanguage('zh-Hans')).toBe('zh-Hans')
+    expect(normalizeTrackLanguage('zh-hans-CN')).toBe('zh-Hans') // progressive subtags, longest match
+    expect(normalizeTrackLanguage('zh-TW')).toBe('zh')
+    expect(normalizeTrackLanguage('hi_IN')).toBe('hi') // underscore separators
+    expect(normalizeTrackLanguage('hi')).toBe('hi')
+  })
+
+  it('returns null for anything outside the catalogue (never invents a language)', () => {
+    expect(normalizeTrackLanguage('ceb')).toBeNull() // Cebuano — not in catalogue
+    expect(normalizeTrackLanguage('haw')).toBeNull()
+    expect(normalizeTrackLanguage('klingon')).toBeNull()
+    expect(normalizeTrackLanguage(ALL_LANGUAGES)).toBeNull()
+    expect(normalizeTrackLanguage('other')).toBeNull()
+    expect(normalizeTrackLanguage('')).toBeNull()
+    expect(normalizeTrackLanguage(null)).toBeNull()
+    expect(normalizeTrackLanguage(undefined)).toBeNull()
+    expect(normalizeTrackLanguage(42 as unknown as string)).toBeNull()
   })
 })
 

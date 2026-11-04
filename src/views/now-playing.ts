@@ -61,6 +61,10 @@ export function createNowPlaying(player: PlayerEngine, onClose: () => void): Now
   const progress = createSlider({
     value: 0,
     label: 'Seek',
+    formatValue: (v) => {
+      const { durationMs } = player.getSnapshot()
+      return durationMs ? `${formatTime(v * durationMs)} of ${formatTime(durationMs)}` : 'No track'
+    },
     onChange: (v, { commit }) => {
       const snap = player.getSnapshot()
       if (!snap.durationMs) return
@@ -123,7 +127,6 @@ export function createNowPlaying(player: PlayerEngine, onClose: () => void): Now
         const fav = isFavoriteSong(song.id)
         favBtn.innerHTML = icon(fav ? 'heart-fill' : 'heart')
         favBtn.setAttribute('aria-pressed', String(fav))
-        favBtn.style.color = fav ? 'var(--color-accent)' : ''
       }
     }
     const playing = snap.status === 'playing' || snap.status === 'loading'

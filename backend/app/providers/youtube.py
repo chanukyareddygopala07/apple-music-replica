@@ -3,7 +3,7 @@
 Playback never happens here: videos play through the **official visible IFrame
 player** on `/watch` in the frontend. This module only does what the API
 documents — `search.list` (embeddable videos) plus one cheap `videos.list`
-for durations and made-for-kids status.
+for durations, made-for-kids status and the declared audio language.
 
 Policy notes carried over from the frontend:
 
@@ -25,7 +25,7 @@ import httpx
 
 from app.cache import TTLCache, cache_miss
 from app.config import YoutubeSettings
-from app.languages import youtube_language
+from app.languages import track_language, youtube_language
 from app.models.schemas import Album, Artist, Track, TrackDetail
 from app.providers.base import (
     HttpFetcher,
@@ -104,7 +104,11 @@ def best_thumbnail(snippet: dict[str, Any] | None) -> str | None:
 
 
 def to_track(
-    snippet: dict[str, Any] | None, *, video_id: str, duration_ms: int = 0
+    snippet: dict[str, Any] | None,
+    *,
+    video_id: str,
+    duration_ms: int = 0,
+    language: str | None = None,
 ) -> Track | None:
     if not snippet or not is_video_id(video_id):
         return None
@@ -112,6 +116,12 @@ def to_track(
     if not title:
         return None
     channel_id = _str(snippet.get("channelId")) or ""
+    # `videos.list` snippets carry `defaultAudioLanguage` (the uploader's
+    # declared audio language); `search.list` snippets do not, so search
+    # passes the value collected from the companion videos.list lookup.
+    # Absent or unmappable → no language, never a guess.
+    declared = language if language is not None else _str(snippet.get("defaultAudioLanguage"))
+    app_language = track_language(declared)
     return Track(
         id=f"{YT_SONG}{video_id}",
         title=decode_entities(title),
@@ -124,6 +134,8 @@ def to_track(
         source="youtube",
         playback_kind="youtube",
         external_url=watch_url(video_id),
+        language=app_language,
+        language_status="verified" if app_language else None,
     )
 
 
@@ -236,9 +248,11 @@ class YoutubeProvider:
             if isinstance(video_id, str) and is_video_id(video_id):
                 video_ids.append(video_id)
 
-        # One cheap videos.list for durations + made-for-kids; a failure must
-        # never fail the search (rows just show no duration).
+        # One cheap videos.list for durations, made-for-kids and the declared
+        # audio language; a failure must never fail the search (rows then show
+        # no duration and no language).
         durations: dict[str, int] = {}
+        languages: dict[str, str] = {}
         try:
             videos = await self._videos(video_ids)
             for video in videos:
@@ -248,14 +262,28 @@ class YoutubeProvider:
                     duration = content.get("duration") if isinstance(content, dict) else None
                     parsed = parse_iso8601_duration(duration if isinstance(duration, str) else None)
                     durations[video_id] = parsed
+                    v_snippet = video.get("snippet")
+                    declared = (
+                        _str(v_snippet.get("defaultAudioLanguage"))
+                        if isinstance(v_snippet, dict)
+                        else None
+                    )
+                    if declared:
+                        languages[video_id] = declared
         except ProviderError:
             durations = {}
+            languages = {}
 
         tracks: list[Track] = []
         artists: list[Artist] = []
         for item, video_id in zip(items, video_ids, strict=False):
             snippet = item.get("snippet") if isinstance(item.get("snippet"), dict) else None
-            track = to_track(snippet, video_id=video_id, duration_ms=durations.get(video_id, 0))
+            track = to_track(
+                snippet,
+                video_id=video_id,
+                duration_ms=durations.get(video_id, 0),
+                language=languages.get(video_id),
+            )
             if not track:
                 continue
             tracks.append(track)

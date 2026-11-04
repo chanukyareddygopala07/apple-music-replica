@@ -22,7 +22,7 @@ body {
   font-size: var(--text-subhead);
   line-height: 1.43;
   color: var(--color-text);
-  background: var(--color-bg);
+  background: var(--color-stage);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow: hidden; /* app shell scrolls its own panes */
@@ -68,6 +68,13 @@ textarea {
   color: inherit;
 }
 
+/* One readable placeholder colour everywhere (the UA default follows
+   color-scheme and goes near-invisible on the dark card). */
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-search-placeholder);
+}
+
 ::selection {
   background: var(--color-accent-soft);
   color: var(--color-text);
@@ -78,7 +85,7 @@ textarea {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-fg);
   outline-offset: 2px;
   border-radius: var(--radius-xs);
 }
@@ -99,6 +106,8 @@ textarea {
 
 .skip-link:focus-visible {
   top: var(--space-4);
+  /* The ring sits on the sage stage, where the purple tints fall below 3:1. */
+  outline-color: var(--color-surface);
 }
 
 .sr-only {
@@ -162,4 +171,76 @@ textarea {
 
 .mono-num {
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Motion primitives (Dribbble reference; all disabled below) ---------- */
+
+/* Outgoing view: content clip-wipes toward the left edge. */
+.view-leaving {
+  pointer-events: none;
+  animation: view-wipe 200ms var(--ease-in-out) forwards;
+}
+
+@keyframes view-wipe {
+  to {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
+/* Incoming view: top-level blocks rise in with a per-child stagger
+   (`--stagger` is set in milliseconds by the shell). Fill `both` so the
+   from-state holds during the delay and the to-state (visible) holds after. */
+.view-enter > * {
+  animation: rise-in 480ms var(--ease-out) both;
+  animation-delay: min(calc(var(--stagger, 0) * 1ms), 420ms);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Per-character heading reveal; aria-label preserves the accessible name. */
+.reveal-text .ch {
+  display: inline-block;
+  white-space: pre;
+  animation: ch-in 300ms var(--ease-out) both;
+  animation-delay: calc(var(--c, 0) * 30ms);
+}
+
+@keyframes ch-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.35em);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Focus rings on the brightest hero stops / np gradient need >= 3:1. */
+.theme-page :focus-visible,
+.now-playing :focus-visible {
+  outline-color: #e0d7ff;
 }

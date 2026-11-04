@@ -74,6 +74,12 @@ export interface YouTubeEmbedHandle {
 export interface MountYouTubeEmbedOptions {
   host: HTMLElement
   videoId: string
+  /**
+   * Route-lifecycle cancellation: when aborted before the player is created,
+   * the mount resolves `null` without touching the live embed — a superseded
+   * /watch render can never replace the committed route's player.
+   */
+  signal?: AbortSignal
   /** Test seam — defaults to loading the official script. */
   loadApi?: LoadApi
   /**
@@ -197,11 +203,15 @@ function buildNocookieIframe(videoId: string): HTMLIFrameElement {
 export async function mountYouTubeEmbed(opts: MountYouTubeEmbedOptions): Promise<YouTubeEmbedHandle | null> {
   const { host, videoId } = opts
   if (!isYoutubeVideoId(videoId)) return null
+  if (opts.signal?.aborted) return null
   try {
     await loadYoutubeIframeApi(opts.loadApi ?? defaultLoadApi)
   } catch {
     return null
   }
+  // Superseded while the API loaded (route changed): never mount, never
+  // replace the live embed.
+  if (opts.signal?.aborted) return null
   const YT = window.YT as Partial<YtNamespace> | undefined
   if (!YT?.Player) return null
   const Player = YT.Player

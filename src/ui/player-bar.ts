@@ -4,10 +4,10 @@ import type { PlayerSnapshot, PlayerEngine } from '@/engine/player'
 import { qs, on, attachArtworkFallback } from '@/ui/el'
 import { icon } from '@/ui/icons'
 import { createSlider } from '@/ui/slider'
-import { formatTime } from '@/utils/format'
 import { songById, artistNamesFor, albumById } from '@/data/catalog-helpers'
 import { isFavoriteSong, toggleFavoriteSong } from '@/state/library-store'
 import { artSrc, artworkDataUrl } from '@/utils/artwork'
+import { formatTime } from '@/utils/format'
 import { showToast } from '@/ui/toast'
 
 export interface PlayerBarHandle {
@@ -20,7 +20,7 @@ export function createPlayerBar(player: PlayerEngine): PlayerBarHandle {
   el.className = 'player-bar'
   el.setAttribute('aria-label', 'Player')
   el.innerHTML = `
-    <div class="player-edge-progress" aria-hidden="true"><div class="edge-fill"></div></div>
+    <div class="player-edge-progress"></div>
     <div class="player-left">
       <a class="pl-art-link" href="/now-playing" data-nav aria-label="Open Now Playing">
         <img class="pl-art" alt="" width="40" height="40" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" />
@@ -32,16 +32,11 @@ export function createPlayerBar(player: PlayerEngine): PlayerBarHandle {
     </div>
     <div class="player-center">
       <div class="player-transport" role="group" aria-label="Playback controls">
-        <button type="button" class="icon-btn" data-action="toggle-shuffle" aria-label="Shuffle" aria-pressed="false">${icon('shuffle')}</button>
+        <button type="button" class="icon-btn" data-action="cycle-repeat" aria-label="Repeat" aria-pressed="false">${icon('repeat')}</button>
         <button type="button" class="icon-btn" data-action="player-prev" aria-label="Previous track">${icon('prev')}</button>
         <button type="button" class="icon-btn play-btn" data-action="toggle-play" aria-label="Play">${icon('play')}</button>
         <button type="button" class="icon-btn" data-action="player-next" aria-label="Next track">${icon('next')}</button>
-        <button type="button" class="icon-btn" data-action="cycle-repeat" aria-label="Repeat" aria-pressed="false">${icon('repeat')}</button>
-      </div>
-      <div class="player-progress">
-        <span class="time mono-num elapsed">0:00</span>
-        <div class="progress-slot"></div>
-        <span class="time mono-num total">0:00</span>
+        <button type="button" class="icon-btn" data-action="toggle-shuffle" aria-label="Shuffle" aria-pressed="false">${icon('shuffle')}</button>
       </div>
     </div>
     <div class="player-right">
@@ -55,20 +50,21 @@ export function createPlayerBar(player: PlayerEngine): PlayerBarHandle {
       <a href="/now-playing" data-nav class="icon-btn" aria-label="Expand player">${icon('chevron-down')}</a>
     </div>`
 
-  const progressSlider = createSlider({
+  // Seek lives on the top edge (reference): a thin, full-width slider line.
+  const seekSlider = createSlider({
     value: 0,
     label: 'Seek',
+    formatValue: (v) => {
+      const { durationMs } = player.getSnapshot()
+      return durationMs ? `${formatTime(v * durationMs)} of ${formatTime(durationMs)}` : 'No track'
+    },
     onChange: (v, { commit }) => {
       const snap = player.getSnapshot()
       if (!snap.durationMs) return
       if (commit) player.seekTo(v * snap.durationMs)
-      else {
-        const elapsed = qs('.player-progress .elapsed', el)
-        if (elapsed) elapsed.textContent = formatTime(v * snap.durationMs)
-      }
     },
   })
-  qs('.progress-slot', el)?.appendChild(progressSlider.el)
+  qs('.player-edge-progress', el)?.appendChild(seekSlider.el)
 
   const volumeSlider = createSlider({
     value: 1,
@@ -89,9 +85,6 @@ export function createPlayerBar(player: PlayerEngine): PlayerBarHandle {
   const artImgEl = qs<HTMLImageElement>('.pl-art', el)
   const titleEl = qs<HTMLElement>('.pl-title', el)
   const artistEl = qs<HTMLElement>('.pl-artist', el)
-  const elapsedEl = qs<HTMLElement>('.player-progress .elapsed', el)
-  const totalEl = qs<HTMLElement>('.player-progress .total', el)
-  const edgeFill = qs<HTMLElement>('.edge-fill', el)
   const artLink = qs<HTMLAnchorElement>('.pl-art-link', el)
 
   attachArtworkFallback(el)
@@ -122,7 +115,6 @@ export function createPlayerBar(player: PlayerEngine): PlayerBarHandle {
       favBtn.innerHTML = icon(fav ? 'heart-fill' : 'heart')
       favBtn.setAttribute('aria-pressed', String(fav))
       favBtn.setAttribute('aria-label', fav ? 'Remove from favorites' : 'Add to favorites')
-      favBtn.style.color = fav ? 'var(--color-accent)' : ''
     }
     if (song && song.id !== lastSongId) {
       lastSongId = song.id
@@ -152,11 +144,8 @@ export function createPlayerBar(player: PlayerEngine): PlayerBarHandle {
     }
     const dur = snap.durationMs
     const pos = snap.positionMs
-    if (elapsedEl) elapsedEl.textContent = formatTime(pos)
-    if (totalEl) totalEl.textContent = dur ? formatTime(dur) : '--:--'
-    progressSlider.setValue(dur ? pos / dur : 0)
-    progressSlider.setEnabled(Boolean(dur))
-    if (edgeFill) edgeFill.style.width = `${dur ? (pos / dur) * 100 : 0}%`
+    seekSlider.setValue(dur ? pos / dur : 0)
+    seekSlider.setEnabled(Boolean(dur))
     el.classList.toggle('has-track', Boolean(song))
   }
 
@@ -169,13 +158,10 @@ export function createPlayerBar(player: PlayerEngine): PlayerBarHandle {
 
   player.subscribe(update)
   player.subscribeTick((snap) => {
-    // tick-only updates: progress + times
+    // tick-only updates: the edge progress line
     const dur = snap.durationMs
     const pos = snap.positionMs
-    if (elapsedEl) elapsedEl.textContent = formatTime(pos)
-    if (totalEl) totalEl.textContent = dur ? formatTime(dur) : '--:--'
-    progressSlider.setValue(dur ? pos / dur : 0)
-    if (edgeFill) edgeFill.style.width = `${dur ? (pos / dur) * 100 : 0}%`
+    seekSlider.setValue(dur ? pos / dur : 0)
   })
 
   return { el, update }

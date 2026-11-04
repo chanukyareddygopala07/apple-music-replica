@@ -149,6 +149,42 @@ describe('mountYouTubeEmbed', () => {
     expect(host.innerHTML).toBe('')
   })
 
+  it('resolves null without mounting when the signal aborts during API load (superseded route)', async () => {
+    // No fake YT yet — the point is the API is still "loading".
+    const host = hostEl()
+    const controller = new AbortController()
+    let releaseLoad!: () => void
+    const loadApi = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseLoad = () => resolve()
+        }),
+    )
+    const pending = mountYouTubeEmbed({ host, videoId: 'dQw4w9WgXcQ', loadApi, signal: controller.signal })
+    // Let the mount reach the loadApi await, then supersede the route.
+    await Promise.resolve()
+    controller.abort()
+    releaseLoad()
+    // Even if YT appears after the load resolves, the abort short-circuits.
+    setFakeYT()
+    await expect(pending).resolves.toBeNull()
+    expect(lastTarget).toBeNull() // Player never constructed
+    expect(host.innerHTML).toBe('')
+  })
+
+  it('an already-aborted signal short-circuits before the API loads', async () => {
+    setFakeYT()
+    const host = hostEl()
+    const controller = new AbortController()
+    controller.abort()
+    const loadApi = vi.fn().mockResolvedValue(undefined)
+    await expect(
+      mountYouTubeEmbed({ host, videoId: 'dQw4w9WgXcQ', loadApi, signal: controller.signal }),
+    ).resolves.toBeNull()
+    expect(loadApi).not.toHaveBeenCalled()
+    expect(host.innerHTML).toBe('')
+  })
+
   it('privacy-enhanced mode mounts a nocookie iframe with enablejsapi + origin', async () => {
     setFakeYT()
     const host = hostEl()

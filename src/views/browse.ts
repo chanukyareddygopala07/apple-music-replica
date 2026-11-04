@@ -2,7 +2,7 @@
 
 import { getCatalog, artistName } from '@/data/catalog-helpers'
 import { attachArtworkFallback } from '@/ui/el'
-import { gradientCss } from '@/utils/artwork'
+import { clampedGradientCss } from '@/utils/artwork'
 import { albumCardHtml, playlistCardHtml, sectionHeaderHtml, songRowHtml, carouselWrapHtml } from '@/ui/media'
 import { wireCarousels } from '@/views/home'
 import { escapeHtml } from '@/ui/el'
@@ -16,7 +16,7 @@ export async function renderBrowse(root: HTMLElement): Promise<void> {
     .map(
       (g) => `
       <a class="category-card" href="/genre/${escapeHtml(g.id)}" data-nav aria-label="${escapeHtml(g.name)}">
-        <span class="cat-wash" style="background:${gradientCss(g.id)}" aria-hidden="true"></span>
+        <span class="cat-wash" style="background:${clampedGradientCss(g.id)}" aria-hidden="true"></span>
         <span class="cat-label">${escapeHtml(g.name)}</span>
       </a>`,
     )

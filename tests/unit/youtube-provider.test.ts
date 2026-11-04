@@ -141,6 +141,36 @@ describe('YoutubeProvider.searchPage', () => {
     expect(provider.madeForKids('dQw4w9WgXcQ')).toBe(false)
     expect(provider.madeForKids('unknown-video')).toBeUndefined()
   })
+
+  it('carries defaultAudioLanguage from the videos.list facts onto the song (verified)', async () => {
+    const withLang: YoutubeVideoItem = {
+      ...videoItem,
+      snippet: { ...searchItem.snippet, defaultAudioLanguage: 'te' },
+    }
+    const client = fakeClient({
+      getVideos: vi.fn(async (ids: string[]) => ids.map((id) => (id === 'dQw4w9WgXcQ' ? withLang : { id }))),
+    })
+    const page = await providerWith(client).searchPage('harbor')
+    expect(page.results.songs[0]).toMatchObject({ language: 'te', languageStatus: 'verified' })
+  })
+
+  it('never invents a language: unmappable or missing facts stay unlabelled', async () => {
+    const unmappable: YoutubeVideoItem = {
+      ...videoItem,
+      snippet: { ...searchItem.snippet, defaultAudioLanguage: 'ceb' },
+    }
+    const client = fakeClient({
+      getVideos: vi.fn(async (ids: string[]) => ids.map((id) => (id === 'dQw4w9WgXcQ' ? unmappable : { id }))),
+    })
+    const page = await providerWith(client).searchPage('harbor')
+    expect(page.results.songs[0]).not.toHaveProperty('language')
+
+    // Fact lookup failure → no duration and no language, never a guess.
+    const broken = fakeClient({ getVideos: vi.fn().mockRejectedValue(new Error('facts boom')) })
+    const failed = await providerWith(broken).searchPage('harbor')
+    expect(failed.results.songs[0]).toMatchObject({ id: 'yt-dQw4w9WgXcQ', durationMs: 0 })
+    expect(failed.results.songs[0]).not.toHaveProperty('language')
+  })
 })
 
 describe('YoutubeProvider entity reads', () => {

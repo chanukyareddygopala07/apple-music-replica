@@ -27,12 +27,20 @@ export function createSlider(opts: SliderOptions): SliderHandle {
     <input type="range" min="0" max="1000" step="1" value="${Math.round(opts.value * 1000)}" aria-label="" />`
   const input = qs<HTMLInputElement>('input', el)
   const fill = qs<HTMLElement>('.fill', el)
-  if (input) input.setAttribute('aria-label', opts.label)
+  const applyValueText = (v: number) => {
+    if (!input) return
+    input.setAttribute('aria-valuetext', opts.formatValue ? opts.formatValue(v) : `${Math.round(v * 100)}%`)
+  }
+  if (input) {
+    input.setAttribute('aria-label', opts.label)
+    applyValueText(opts.value)
+  }
 
   const emit = (commit: boolean) => {
     if (!input || !fill) return
     const v = Number(input.value) / 1000
     fill.style.width = `${Math.round(v * 100)}%`
+    applyValueText(v)
     opts.onChange(v, { commit })
   }
 
@@ -72,6 +80,7 @@ export function createSlider(opts: SliderOptions): SliderHandle {
       if (document.activeElement === input) return // don't fight the user mid-drag
       input.value = String(Math.round(v * 1000))
       fill.style.width = `${Math.round(v * 100)}%`
+      applyValueText(v)
     },
     setEnabled(enabled: boolean) {
       if (!input) return

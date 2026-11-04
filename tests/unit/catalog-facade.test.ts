@@ -674,6 +674,23 @@ describe('grouped search with YouTube configured (dedicated-view policy)', () =>
     expect(new URL(searchUrl!).searchParams.get('relevanceLanguage')).toBe('fr')
   })
 
+  it('ingests language-tagged results into the session pool (one search feeds Home shelves)', async () => {
+    audiusOn()
+    youtubeOn()
+    const ytVideoWithLang = { ...ytVideoItem, snippet: { ...ytSearchItem.snippet, defaultAudioLanguage: 'te' } }
+    fixtureFetch(allProviderRoutes(ytRoutes({ '/youtube/v3/videos': { items: [ytVideoWithLang] } })))
+    const mod: CatalogModule = await freshCatalogModule()
+    const grouped = await mod.searchGrouped('harbor', { source: 'youtube' })
+    expect(grouped.groups[0]?.results.songs[0]).toMatchObject({ language: 'te', languageStatus: 'verified' })
+
+    // Same module generation as the facade above: its discovery pool holds
+    // exactly this song, ready for the Home "Explore by Language" shelves.
+    const pool = await import('@/data/discovery-pool')
+    expect(pool.discoveredSongs().map((s) => s.id)).toEqual(['yt-dQw4w9WgXcQ'])
+    expect(pool.shelvesByLanguage()).toMatchObject([{ code: 'te', label: 'Telugu' }])
+    pool.clearDiscoveredPool()
+  })
+
   it('Other languages hides YouTube too and queries nothing', async () => {
     audiusOn()
     youtubeOn()

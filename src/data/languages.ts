@@ -137,6 +137,36 @@ export function youtubeLanguage(code: string): string | undefined {
 }
 
 /**
+ * Provider-declared track language (BCP-47 / ISO 639-1) → app code, or null.
+ *
+ * Progressive match over the tag's subtags (longest first): app codes are
+ * tried for every prefix (`zh-Hans-CN` → `zh-Hans`), then ISO values
+ * (`pt-BR` → `pt`). Codes outside the catalogue return null — a language is
+ * never invented, so callers never display a wrong label. Mirrors
+ * `track_language` in `backend/app/languages.py`.
+ */
+export function normalizeTrackLanguage(raw: string | null | undefined): string | null {
+  if (typeof raw !== 'string') return null
+  const value = raw.trim().toLowerCase().replaceAll('_', '-')
+  if (!value || value === ALL_LANGUAGES || value === 'other') return null
+  const parts = value.split('-').filter(Boolean)
+  if (parts.length === 0) return null
+  const candidates: string[] = []
+  for (let i = parts.length; i > 0; i--) candidates.push(parts.slice(0, i).join('-'))
+  for (const candidate of candidates) {
+    for (const opt of LANGUAGES) {
+      if (opt.iso && opt.code.toLowerCase() === candidate) return opt.code
+    }
+  }
+  for (const candidate of candidates) {
+    for (const opt of LANGUAGES) {
+      if (opt.iso && opt.iso === candidate) return opt.code
+    }
+  }
+  return null
+}
+
+/**
  * Per-track safety net for a selected language filter.
  * - `all`      — no filter, everything matches.
  * - unknown    — no `song.language` → eligible: the track cannot honestly be

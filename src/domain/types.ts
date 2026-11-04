@@ -147,6 +147,8 @@ export interface SearchQueryOptions {
   source?: SourceFilter
   /** Cancels superseded searches (stale keystrokes) — see data/api-client. */
   signal?: AbortSignal
+  /** Per-source page size (backend caps it at 50) — discovery widens its net. */
+  limit?: number
 }
 
 /** Grouped search: results partitioned per source, never merged. */

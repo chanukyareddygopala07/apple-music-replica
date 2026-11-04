@@ -138,6 +138,15 @@ describe('search through the API', () => {
     expect(providerCalls).toEqual([])
   })
 
+  it('threads an explicit page-size limit into the /api/search query', async () => {
+    const { calls } = stubApi([PROVIDERS_ALL_ON, searchRoute('youtube', [])])
+    const mod = await freshModule()
+    await mod.searchGrouped('music', { source: 'youtube', limit: 50 })
+    const search = calls.find((c) => c.includes('/api/search'))
+    expect(search).toBeDefined()
+    expect(new URL(search!, 'http://localhost').searchParams.get('limit')).toBe('50')
+  })
+
   it('demo stays browser-side even in API mode', async () => {
     const { calls } = stubApi([PROVIDERS_ALL_ON, searchRoute('audius', [])])
     const mod = await freshModule()

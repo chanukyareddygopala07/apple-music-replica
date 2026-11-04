@@ -9,7 +9,7 @@ import { attachArtworkFallback, debounce, escapeHtml, on, qs, artImg } from '@/u
 import { icon } from '@/ui/icons'
 import { albumCardHtml, emptyStateHtml, mediaCardHtml, playlistCardHtml, skeletonRowsHtml, songRowHtml, songArtSeed } from '@/ui/media'
 import { GENRES } from '@/data/demo-catalog'
-import { gradientCss } from '@/utils/artwork'
+import { clampedGradientCss } from '@/utils/artwork'
 import { ALL_LANGUAGES, LANGUAGES, languageLabel, normalizeLanguage } from '@/data/languages'
 import { normalizeSourceFilter, sourceFilterOptions, sourceLabel, sourceName } from '@/data/sources'
 import { prefsStore, setSearchLanguagePref, setSearchSourcePref } from '@/state/prefs-store'
@@ -66,7 +66,7 @@ export async function renderSearch(root: HTMLElement, initialQuery: string, filt
       <div class="search-pill-wrap">
         <div class="search-pill" role="search">
           ${icon('search')}
-          <input type="search" id="search-input" placeholder="Artists, songs, albums, playlists" autocomplete="off" aria-label="Search catalogue" value="${escapeHtml(initialQuery)}" />
+          <input type="search" id="search-input" data-autofocus placeholder="Artists, songs, albums, playlists" autocomplete="off" aria-label="Search catalogue" value="${escapeHtml(initialQuery)}" />
           <button type="button" class="icon-btn clear-btn" data-action="search-clear" aria-label="Clear search">${icon('close')}</button>
         </div>
       </div>
@@ -116,7 +116,7 @@ export async function renderSearch(root: HTMLElement, initialQuery: string, filt
       ${GENRES.map(
         (g) => `
         <a class="category-card" href="/genre/${escapeHtml(g.id)}" data-nav>
-          <span class="cat-wash" style="background:${gradientCss(g.id)}" aria-hidden="true"></span>
+          <span class="cat-wash" style="background:${clampedGradientCss(g.id)}" aria-hidden="true"></span>
           <span class="cat-label">${escapeHtml(g.name)}</span>
         </a>`,
       ).join('')}

@@ -353,6 +353,8 @@ async def test_youtube_search_survives_a_failed_duration_lookup() -> None:
     page = await p.search("clip")
     assert len(page.tracks) == 1
     assert page.tracks[0].duration_ms == 0  # no duration, but the row survives
+    assert page.tracks[0].language is None  # no videos.list → no language, never a guess
+    assert page.tracks[0].language_status is None
     await p._fetcher._client.aclose()
 
 
@@ -451,4 +453,103 @@ async def test_youtube_quota_and_invalid_key_are_clean_provider_errors(
     assert excinfo.value.status_code == status
     assert expected in excinfo.value.message.lower()
     assert "AIzaFAKEKEY" not in excinfo.value.message  # the key never rides along
+    await p._fetcher._client.aclose()
+
+
+async def test_youtube_search_maps_declared_audio_language_from_videos_list() -> None:
+    """`defaultAudioLanguage` (videos.list) becomes the track's app language."""
+    search_body = {
+        "items": [
+            {"id": {"videoId": "dQw4w9WgXcQ"}, "snippet": {"title": "Clip", "channelId": "UC1"}}
+        ]
+    }
+    videos_body = {
+        "items": [
+            {
+                "id": "dQw4w9WgXcQ",
+                "snippet": {
+                    "title": "Clip",
+                    "channelId": "UC1",
+                    "defaultAudioLanguage": "te",
+                },
+                "contentDetails": {"duration": "PT3M"},
+                "status": {"madeForKids": False},
+            }
+        ]
+    }
+    yt_settings = YoutubeSettings(
+        enabled=True, api_key="k", base_url="https://www.googleapis.com/youtube/v3"
+    )
+    p, _ = provider(
+        yt.YoutubeProvider,
+        yt_settings,
+        [
+            ("/search", httpx.Response(200, json=search_body)),
+            ("/videos", httpx.Response(200, json=videos_body)),
+        ],
+    )
+    page = await p.search("telugu")
+    track = page.tracks[0]
+    assert track.language == "te"
+    assert track.language_status == "verified"  # provider-declared, not guessed
+    await p._fetcher._client.aclose()
+
+
+async def test_youtube_search_normalises_region_subtags_and_skips_junk() -> None:
+    search_body = {
+        "items": [
+            {"id": {"videoId": "aaaaaaaaaaa"}, "snippet": {"title": "A", "channelId": "UC1"}},
+            {"id": {"videoId": "bbbbbbbbbbb"}, "snippet": {"title": "B", "channelId": "UC1"}},
+        ]
+    }
+    videos_body = {
+        "items": [
+            {"id": "aaaaaaaaaaa", "snippet": {"title": "A", "defaultAudioLanguage": "pt-BR"}},
+            {"id": "bbbbbbbbbbb", "snippet": {"title": "B", "defaultAudioLanguage": "ceb"}},
+        ]
+    }
+    yt_settings = YoutubeSettings(
+        enabled=True, api_key="k", base_url="https://www.googleapis.com/youtube/v3"
+    )
+    p, _ = provider(
+        yt.YoutubeProvider,
+        yt_settings,
+        [
+            ("/search", httpx.Response(200, json=search_body)),
+            ("/videos", httpx.Response(200, json=videos_body)),
+        ],
+    )
+    page = await p.search("mixed")
+    by_id = {t.id: t for t in page.tracks}
+    assert by_id["yt-aaaaaaaaaaa"].language == "pt"  # region collapsed honestly
+    assert by_id["yt-bbbbbbbbbbb"].language is None  # unknown code stays unlabelled
+    await p._fetcher._client.aclose()
+
+
+async def test_youtube_get_track_maps_the_videos_snippet_language() -> None:
+    videos_body = {
+        "items": [
+            {
+                "id": "dQw4w9WgXcQ",
+                "snippet": {
+                    "title": "Hindi Clip",
+                    "channelId": "UC1",
+                    "channelTitle": "Ch",
+                    "defaultAudioLanguage": "hi",
+                },
+                "contentDetails": {"duration": "PT1M"},
+                "status": {"madeForKids": False},
+            }
+        ]
+    }
+    yt_settings = YoutubeSettings(
+        enabled=True, api_key="k", base_url="https://www.googleapis.com/youtube/v3"
+    )
+    p, _ = provider(
+        yt.YoutubeProvider, yt_settings, [("/videos", httpx.Response(200, json=videos_body))]
+    )
+    detail = await p.get_track("yt-dQw4w9WgXcQ")
+    assert detail is not None
+    assert detail.track.language == "hi"
+    assert detail.track.language_status == "verified"
     await p._fetcher._client.aclose()

@@ -2,17 +2,29 @@
 
 import type { Album, Playlist, Song } from '@/domain/types'
 import { artistNamesFor, getCatalog } from '@/data/catalog-helpers'
+import { languageLabel, normalizeTrackLanguage } from '@/data/languages'
 import { sourceName } from '@/data/sources'
 import { escapeHtml, artImg } from '@/ui/el'
 import { icon, type IconName } from '@/ui/icons'
 import { formatTime } from '@/utils/format'
-import { heroColors } from '@/utils/artwork'
+import { fitForWhiteText, heroColors } from '@/utils/artwork'
 
 /** Source pill for provider-sourced rows — demo rows carry no `source`. */
 function sourceBadgeHtml(song: Song): string {
   if (!song.source || song.source === 'demo') return ''
   const name = sourceName(song.source)
   return `<span class="source-badge" title="Source: ${escapeHtml(name)}">${escapeHtml(name)}</span>`
+}
+
+/**
+ * Compact language pill — rendered only when the track declares a language
+ * this catalogue can label; unknown languages stay unlabelled (never guessed).
+ */
+export function languageBadgeHtml(song: Song): string {
+  const code = normalizeTrackLanguage(song.language)
+  if (!code) return ''
+  const label = languageLabel(code)
+  return `<span class="language-badge" title="Language: ${escapeHtml(label)}">${escapeHtml(label)}</span>`
 }
 
 export function songRowHtml(song: Song, opts?: { index?: number; showArt?: boolean; context?: string; queueItemId?: string; draggable?: boolean }): string {
@@ -29,7 +41,7 @@ export function songRowHtml(song: Song, opts?: { index?: number; showArt?: boole
       ${opts?.draggable ? 'draggable="true"' : ''}>
       ${numCell}
       <div class="row-main">
-        <div class="row-title">${escapeHtml(song.title)}${song.explicit ? '<span class="explicit-badge" title="Explicit" aria-label="Explicit">E</span>' : ''}${sourceBadgeHtml(song)}</div>
+        <div class="row-title"><span class="row-title-text">${escapeHtml(song.title)}</span>${song.explicit ? '<span class="explicit-badge" title="Explicit" aria-label="Explicit">E</span>' : ''}${sourceBadgeHtml(song)}${languageBadgeHtml(song)}</div>
         <div class="row-sub">${escapeHtml(sub)}</div>
       </div>
       <span class="row-duration mono-num">${formatTime(song.durationMs)}</span>
@@ -76,24 +88,54 @@ export function albumCardHtml(album: Album, artistName: string): string {
 }
 
 export function playlistCardHtml(pl: Playlist): string {
-  return mediaCardHtml(
-    { id: pl.id, title: pl.title, sub: pl.curator ?? 'Realaxify User', seed: pl.artworkSeed, href: `/playlist/${pl.id}` },
-    { playAction: 'play-context', playData: { kind: 'playlist', id: pl.id } },
-  )
+  const count = pl.songIds.length
+  return `
+    <a class="media-card pl-card" href="${escapeHtml(`/playlist/${pl.id}`)}" data-nav
+      style="--pl-base:${fitForWhiteText(heroColors(pl.artworkSeed).from)}"
+      aria-label="${escapeHtml(pl.title)}">
+      <div class="pl-card-title">${escapeHtml(pl.title)}</div>
+      <div class="pl-card-art">${artImg(pl.artworkSeed, pl.title)}</div>
+      <div class="pl-card-meta">${count} track${count === 1 ? '' : 's'}</div>
+      <button type="button" class="card-play" data-action="play-context" data-kind="playlist" data-id="${escapeHtml(pl.id)}" aria-label="Play ${escapeHtml(pl.title)}">${icon('play')}</button>
+    </a>`
+}
+
+/**
+ * YouTube video card for the Home YouTube Music section: thumbnail, title,
+ * channel, provider/language badges and duration. The whole card is the
+ * watch action (`/watch/yt-…` → visible official embed) — never an audio
+ * play button: YouTube never enters the <audio> queue.
+ */
+export function youtubeCardHtml(song: Song): string {
+  const sub = artistNamesFor(song)
+  const duration = song.durationMs > 0 ? formatTime(song.durationMs) : ''
+  return `
+    <a class="media-card yt-card" href="${escapeHtml(`/watch/${song.id}`)}" data-nav
+      aria-label="Watch ${escapeHtml(song.title)}">
+      <div class="art-wrap">
+        ${artImg(songArtSeed(song), song.title)}
+        ${duration ? `<span class="yt-duration mono-num" aria-hidden="true">${duration}</span>` : ''}
+        <span class="card-play" aria-hidden="true">${icon('play')}</span>
+      </div>
+      <div class="card-title clamp-2">${escapeHtml(song.title)}${sourceBadgeHtml(song)}${languageBadgeHtml(song)}</div>
+      <div class="card-sub clamp-2">${escapeHtml(sub)}</div>
+    </a>`
 }
 
 export function sectionHeaderHtml(title: string, href?: string): string {
-  const inner = `${escapeHtml(title)}${href ? icon('chevron-right') : ''}`
+  // Linked headers read like the reference ("Title … View all"); the whole
+  // anchor stays the link, so the accessible name carries both parts.
   return href
-    ? `<div class="section-header"><a class="section-title" href="${escapeHtml(href)}" data-nav>${inner}</a></div>`
-    : `<div class="section-header"><h2 class="section-title">${inner}</h2></div>`
+    ? `<div class="section-header"><a class="section-title" href="${escapeHtml(href)}" data-nav><span>${escapeHtml(title)}</span><span class="st-view">View all</span></a></div>`
+    : `<div class="section-header"><h2 class="section-title">${escapeHtml(title)}</h2></div>`
 }
 
-export function carouselWrapHtml(trackInner: string): string {
+/** Horizontal scroller with arrow buttons; `trackAttrs` decorates the track (e.g. `data-song-list`). */
+export function carouselWrapHtml(trackInner: string, trackAttrs = ''): string {
   return `
     <div class="carousel">
       <button type="button" class="carousel-arrow" data-side="prev" aria-label="Scroll back">${icon('chevron-left')}</button>
-      <div class="carousel-track">${trackInner}</div>
+      <div class="carousel-track" ${trackAttrs}>${trackInner}</div>
       <button type="button" class="carousel-arrow" data-side="next" aria-label="Scroll forward">${icon('chevron-right')}</button>
     </div>`
 }
@@ -128,25 +170,13 @@ export async function resolveSongIds(ids: string[]): Promise<Song[]> {
   return songs.filter((s): s is Song => Boolean(s))
 }
 
-function relativeLuminance(hex: string): number {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex)
-  if (!m) return 0
-  const n = parseInt(m[1]!, 16)
-  const channel = (v: number): number => {
-    const c = v / 255
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  }
-  const r = channel((n >> 16) & 0xff)
-  const g = channel((n >> 8) & 0xff)
-  const b = channel(n & 0xff)
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-
 export function applyHeroTheme(root: HTMLElement, seed: string): void {
   const { from, to } = heroColors(seed)
-  root.style.setProperty('--hero-from', from)
-  root.style.setProperty('--hero-to', to)
-  const light = relativeLuminance(to) > 0.45 || relativeLuminance(from) > 0.6
-  root.style.setProperty('--hero-text', light ? 'rgba(20, 20, 23, 0.92)' : 'rgba(255, 255, 255, 0.95)')
-  root.style.setProperty('--hero-text-secondary', light ? 'rgba(20, 20, 23, 0.62)' : 'rgba(255, 255, 255, 0.64)')
+  // White ink only: every hero stop is fitted to the white-text luminance band
+  // (see fitForWhiteText), so primary (0.95) and secondary (0.9) text clear
+  // AA 4.5:1 anywhere the gradient — or its fade into --color-bg — appears.
+  root.style.setProperty('--hero-from', fitForWhiteText(from))
+  root.style.setProperty('--hero-to', fitForWhiteText(to))
+  root.style.setProperty('--hero-text', 'rgba(255, 255, 255, 0.95)')
+  root.style.setProperty('--hero-text-secondary', 'rgba(255, 255, 255, 0.9)')
 }

@@ -83,7 +83,17 @@
 }
 
 .icon-btn[aria-pressed='true'] {
-  color: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+
+.theme-page .icon-btn:not(.on-theme) {
+  color: var(--hero-text-secondary);
+}
+
+/* Pressed accent icons sit on the brightest hero stops / np gradient: use a
+   lavender light enough for 3:1 icon contrast (WCAG 1.4.11). */
+.theme-page .icon-btn[aria-pressed='true'] {
+  color: #e0d7ff;
 }
 
 .icon-btn.lg {
@@ -141,16 +151,32 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: var(--space-4);
   padding: 0 var(--content-gutter) var(--space-3);
 }
 
 .section-title {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--text-title3);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.015em;
+  color: var(--color-text);
+}
+
+/* Reference: right-aligned action on linked section headers. */
+.section-title .st-view {
+  flex: none;
+  font-size: var(--text-footnote);
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--color-text-secondary);
+}
+
+.section-title:hover .st-view {
   color: var(--color-text);
 }
 
@@ -160,7 +186,7 @@
 }
 
 a.section-title:hover {
-  color: var(--color-accent);
+  color: var(--color-text);
 }
 
 .section-title svg {
@@ -186,9 +212,10 @@ a.section-title:hover {
 
 .media-card .art-wrap {
   position: relative;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--color-surface2);
+  transition: transform var(--motion-base) var(--ease-out);
 }
 
 .media-card .art-wrap img,
@@ -196,17 +223,21 @@ a.section-title:hover {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-lg);
+}
+
+.media-card:hover .art-wrap {
+  transform: scale(1.02);
 }
 
 .media-card .card-title {
   font-size: var(--text-subhead);
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.3;
 }
 
 .media-card .card-sub {
-  font-size: var(--text-footnote);
+  font-size: var(--text-caption);
   color: var(--color-text-secondary);
 }
 
@@ -237,6 +268,79 @@ a.section-title:hover {
 .media-card:focus-within .card-play {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Playlist cards (reference: color base, title on top, photo below, track count). */
+.media-card.pl-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 164 / 160;
+  padding: 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--pl-base, var(--color-surface2));
+  color: #fff;
+  transition: transform var(--motion-base) var(--ease-out), box-shadow var(--motion-base) var(--ease-out);
+}
+
+.media-card.pl-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+.media-card.pl-card .pl-card-title {
+  position: relative;
+  z-index: 2;
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.media-card.pl-card .pl-card-art {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 66%;
+}
+
+.media-card.pl-card .pl-card-art img,
+.media-card.pl-card .pl-card-art .art-fallback {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.media-card.pl-card .pl-card-meta {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  z-index: 2;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+}
+
+/* Bottom scrim so the white track-count line clears AA over bright artwork. */
+.media-card.pl-card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46%;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+
+.media-card.pl-card .card-play {
+  z-index: 3;
 }
 
 /* ---------- Carousels ---------- */
@@ -297,14 +401,14 @@ a.section-title:hover {
   height: 20px;
 }
 
-/* Album cards inside carousels */
+/* Album cards inside carousels (reference rhythm: 164px cards) */
 .carousel .media-card {
-  width: 180px;
+  width: 164px;
 }
 
 @media (max-width: 833px) {
   .carousel .media-card {
-    width: 150px;
+    width: 148px;
   }
 
   .media-grid {
@@ -312,14 +416,60 @@ a.section-title:hover {
   }
 }
 
-/* ---------- Editorial feature cards ---------- */
+/* YouTube video cards on Home: wider 16:9 thumbnails, duration chip. */
+.carousel .yt-card {
+  width: 240px;
+}
+
+.yt-card .art-wrap img {
+  aspect-ratio: 16 / 9;
+}
+
+.yt-card .art-wrap .card-play {
+  pointer-events: none;
+}
+
+.yt-duration {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background: rgba(20, 20, 22, 0.82);
+  color: #fff;
+  font-size: var(--text-footnote);
+  line-height: 1.3;
+}
+
+@media (max-width: 833px) {
+  .carousel .yt-card {
+    width: 200px;
+  }
+}
+
+/* "Explore by Language" shelves: horizontal row scrollers under one header. */
+.lang-shelf .carousel-track .song-row {
+  width: 340px;
+  flex: 0 0 340px;
+}
+
+@media (max-width: 640px) {
+  .lang-shelf .carousel-track .song-row {
+    width: calc(100vw - 48px);
+    flex-basis: calc(100vw - 48px);
+    max-width: 340px;
+  }
+}
+
+/* ---------- Editorial hero cards (reference: gradient card + artwork burst) ---------- */
 
 .editorial-track {
   display: flex;
-  gap: var(--space-5);
+  gap: var(--space-6);
   overflow-x: auto;
+  overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  padding: 0 var(--content-gutter) var(--space-2);
+  padding: var(--space-5) var(--content-gutter) var(--space-2);
   scrollbar-width: none;
 }
 
@@ -328,78 +478,159 @@ a.section-title:hover {
 }
 
 .editorial-card {
+  position: relative;
   flex: 0 0 auto;
-  width: min(540px, 86vw);
+  width: min(572px, 88vw);
+  min-height: 200px;
   scroll-snap-align: start;
+  padding: 26px 28px;
+  border-radius: var(--radius-hero);
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-hero-green-from), var(--color-hero-green-to));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
+  transition: transform var(--motion-base) var(--ease-out), box-shadow var(--motion-base) var(--ease-out);
+}
+
+.editorial-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.36);
 }
 
 .editorial-card .eyebrow {
-  font-size: var(--text-caption2);
+  font-size: var(--text-caption);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .editorial-card .ed-title {
-  margin-top: 2px;
-  font-size: var(--text-headline);
-  font-weight: 600;
-  line-height: 1.25;
+  margin-top: 6px;
+  max-width: 60%;
+  font-size: var(--text-title1);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  color: #fff;
 }
 
 .editorial-card .ed-sub {
+  margin-top: 6px;
+  max-width: 58%;
   font-size: var(--text-subhead);
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Reference CTA: white pill with a play mark. */
+.editorial-card .ed-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  height: 36px;
+  padding: 0 18px;
+  border-radius: var(--radius-pill);
+  background: #fff;
+  color: #141416;
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  transition: transform var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out);
+}
+
+.editorial-card .ed-cta svg {
+  width: 13px;
+  height: 13px;
+}
+
+.editorial-card:hover .ed-cta {
+  background: #f4f4f4;
+  transform: scale(1.03);
+}
+
+.editorial-card:active .ed-cta {
+  transform: scale(0.97);
+}
+
+/* Artwork cluster: rounded artwork overflowing the top edge, coral burst behind. */
+.editorial-card .ed-art {
+  position: absolute;
+  right: 22px;
+  top: -16px;
+  bottom: 18px;
+  width: 170px;
+  pointer-events: none;
+}
+
+.editorial-card .ed-burst {
+  position: absolute;
+  right: -26px;
+  top: -12px;
+  width: 132px;
+  height: 132px;
+  color: var(--color-burst);
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.25));
 }
 
 .editorial-card .ed-media {
-  position: relative;
-  margin-top: var(--space-3);
-  border-radius: var(--radius-md);
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
   overflow: hidden;
-  aspect-ratio: 16 / 9;
-  background: var(--color-surface2);
+  background: rgba(0, 0, 0, 0.2);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
 }
 
-.editorial-card .ed-media img {
+.editorial-card .ed-media img,
+.editorial-card .ed-media .art-fallback {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.editorial-card .ed-caption {
-  position: absolute;
-  left: var(--space-4);
-  right: var(--space-4);
-  bottom: var(--space-3);
-  color: #fff;
-  font-size: var(--text-footnote);
-  font-weight: 500;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
 }
 
 .editorial-card .ed-media::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent 55%, rgba(0, 0, 0, 0.42) 100%);
+  background: radial-gradient(120% 80% at 30% 20%, rgba(255, 255, 255, 0.16), transparent 55%);
   pointer-events: none;
 }
 
-/* ---------- Song rows ---------- */
+.editorial-card .ed-caption {
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 1;
+  color: #fff;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+}
+
+@media (max-width: 640px) {
+  .editorial-card {
+    width: 100%;
+    min-height: 180px;
+    padding: 22px;
+  }
+
+  .editorial-card .ed-art {
+    display: none;
+  }
+
+  .editorial-card .ed-title,
+  .editorial-card .ed-sub {
+    max-width: none;
+  }
+}
+
+/* ---------- Song rows (reference: 2-column compact lists, borderless) ---------- */
 
 .song-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  column-gap: var(--space-7);
+  grid-template-columns: repeat(2, 1fr);
+  column-gap: var(--space-6);
   padding: 0 var(--content-gutter);
-}
-
-@media (max-width: 1100px) {
-  .song-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 640px) {
@@ -414,9 +645,11 @@ a.section-title:hover {
   align-items: center;
   gap: var(--space-3);
   min-height: 56px;
-  padding: var(--space-1) 0;
-  border-bottom: 1px solid var(--color-hairline);
+  padding: 6px 10px;
+  border-radius: 10px;
+  border-bottom: none;
   cursor: default;
+  transition: background var(--motion-fast) var(--ease-out);
 }
 
 .theme-page .song-row {
@@ -428,14 +661,14 @@ a.section-title:hover {
 }
 
 .song-row:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-fg);
   outline-offset: -2px;
 }
 
 .song-row .row-art {
   width: 40px;
   height: 40px;
-  border-radius: var(--radius-xs);
+  border-radius: 8px;
   object-fit: cover;
   background: var(--color-surface2);
 }
@@ -445,13 +678,30 @@ a.section-title:hover {
 }
 
 .song-row .row-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
   font-size: var(--text-subhead);
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.3;
 }
 
+/* Title text truncates; badges (explicit/source/language) stay visible. */
+.song-row .row-title .row-title-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.song-row .row-title .explicit-badge,
+.song-row .row-title .source-badge,
+.song-row .row-title .language-badge {
+  flex: 0 0 auto;
+}
+
 .song-row .row-sub {
-  font-size: var(--text-footnote);
+  font-size: var(--text-caption);
   color: var(--color-text-secondary);
   line-height: 1.3;
 }
@@ -461,11 +711,12 @@ a.section-title:hover {
 }
 
 .song-row.is-playing .row-title {
-  color: var(--color-accent);
+  color: var(--color-accent-fg);
 }
 
 .song-row .row-duration {
-  font-size: var(--text-footnote);
+  font-size: var(--text-caption);
+  font-weight: 600;
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -506,7 +757,30 @@ a.section-title:hover {
 
 .song-row.is-playing .row-play-hint {
   display: flex;
-  color: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+
+.theme-page .row-num,
+.theme-page .section-title .st-view,
+.theme-page .media-card .card-sub {
+  color: var(--hero-text-secondary);
+}
+
+.theme-page .source-badge,
+.theme-page .language-badge {
+  background: rgba(20, 20, 22, 0.72);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #c9c9ce;
+}
+
+/* Accent-fg text fails 4.5:1 on the brightest hero stops; signal "playing"
+   with an accent-soft row fill instead (white title on #2a2350 = 13:1). */
+.theme-page .song-row.is-playing {
+  background: var(--color-accent-soft);
+}
+
+.theme-page .song-row.is-playing .row-title {
+  color: #fff;
 }
 
 .explicit-badge {
@@ -530,10 +804,26 @@ a.section-title:hover {
   align-items: center;
   margin-left: 6px;
   padding: 1px 6px;
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
-  background: var(--color-surface2);
-  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.07);
+  color: #b9b9be;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+}
+
+/* Declared language of a multilingual track — only when it has one. */
+.language-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #b9b9be;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -811,7 +1101,7 @@ dialog.sheet::backdrop {
 
 .dialog-body input:focus-visible,
 .dialog-body textarea:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-fg);
   outline-offset: 0;
 }
 
@@ -895,7 +1185,8 @@ dialog.sheet::backdrop {
 }
 
 .theme-page .slider .track,
-.player-theme .slider .track {
+.player-theme .slider .track,
+.now-playing .slider .track {
   background: rgba(255, 255, 255, 0.24);
 }
 
@@ -906,9 +1197,11 @@ dialog.sheet::backdrop {
   border-radius: var(--radius-pill);
 }
 
+/* Opaque fill so fill-vs-track stays >= 3:1 over the brightest hero stop. */
 .theme-page .slider .fill,
-.player-theme .slider .fill {
-  background: rgba(255, 255, 255, 0.85);
+.player-theme .slider .fill,
+.now-playing .slider .fill {
+  background: #fff;
 }
 
 .slider.accent .fill {
@@ -926,9 +1219,14 @@ dialog.sheet::backdrop {
 }
 
 .slider:focus-within {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-fg);
   outline-offset: 2px;
   border-radius: var(--radius-pill);
+}
+
+.theme-page .slider:focus-within,
+.now-playing .slider:focus-within {
+  outline-color: #e0d7ff;
 }
 
 /* ---------- Search pill ---------- */
@@ -952,7 +1250,7 @@ dialog.sheet::backdrop {
 }
 
 .search-pill:focus-within {
-  border-color: var(--color-accent);
+  border-color: var(--color-accent-fg);
   background: var(--color-bg);
 }
 
@@ -1030,7 +1328,7 @@ dialog.sheet::backdrop {
 }
 
 .filter-select:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-fg);
   outline-offset: 2px;
 }
 

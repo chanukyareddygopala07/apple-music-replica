@@ -61,6 +61,7 @@ import { describeMusicKitConfig, readMusicKitConfig } from '@/data/musickit-toke
 import { describeYoutubeConfig, readYoutubeConfig } from '@/data/youtube-config'
 import { youtubeChannelId, youtubeAlbumVideoId, youtubeVideoId } from '@/data/youtube-normalize'
 import { ALL_LANGUAGES, normalizeLanguage, songMatchesLanguage } from '@/data/languages'
+import { rememberDiscoveredSongs } from '@/data/discovery-pool'
 import { SOURCE_ORDER, normalizeSourceFilter, sourceName, sourceSupportsLanguage } from '@/data/sources'
 
 const demo = new DemoCatalogProvider()
@@ -417,6 +418,7 @@ async function runSource(
   query: string,
   language: string,
   signal?: AbortSignal,
+  limit?: number,
 ): Promise<SearchGroup> {
   const name = sourceName(source)
   // Remote sources prefer the API (it holds the provider credentials and
@@ -425,8 +427,13 @@ async function runSource(
   // have its own VITE_* config — best available truth, not exclusive modes.
   if (source !== 'demo' && source !== 'musickit' && (await apiAvailable())) {
     try {
-      const group = await apiSearchGroup(source, query, language, signal)
-      if (group.status !== 'unconfigured' && group.status !== 'disabled') return group
+      const group = await apiSearchGroup(source, query, language, signal, limit)
+      if (group.status !== 'unconfigured' && group.status !== 'disabled') {
+        // Session language pool: Home's multilingual shelves reuse tracks
+        // already searched anywhere (one discovery request, never per language).
+        rememberDiscoveredSongs(group.results.songs)
+        return group
+      }
     } catch (err) {
       // A superseded search stops here: no fallback request for a query the
       // user has already replaced (the view drops cancelled rejections).
@@ -452,7 +459,7 @@ async function runSource(
       // Jamendo filters by the documented `lang` parameter server-side; its
       // musicinfo language is ISO-only, so re-checking it client-side would
       // false-exclude under zh-Hans/zh-Hant — the safety net is skipped here.
-      const page = await jamendo.searchPage(query, { language })
+      const page = await jamendo.searchPage(query, { language, limit })
       raw = page.results
       cursor = page.cursor
     } else if (source === 'youtube') {
@@ -460,7 +467,7 @@ async function runSource(
       // not a language verification — documented in README/plan). The client-
       // side safety net cannot exclude yt songs (they carry no verified
       // language), so results are shown as YouTube's, never re-labelled.
-      const page = await youtube.searchPage(query, { language })
+      const page = await youtube.searchPage(query, { language, limit })
       raw = page.results
       cursor = page.cursor
     } else {
@@ -469,6 +476,7 @@ async function runSource(
     const results =
       source === 'jamendo' || source === 'youtube' ? raw : filterByLanguage(raw, language)
     const total = results.songs.length + results.albums.length + results.artists.length + results.playlists.length
+    rememberDiscoveredSongs(results.songs)
     return { source, name, status: total > 0 ? 'ok' : 'empty', results, cursor }
   } catch (err) {
     const detail = err instanceof Error && err.message ? `: ${err.message}` : ''
@@ -547,7 +555,7 @@ export async function searchGrouped(
 
   const eligible = requested.filter((s) => sourceSupportsLanguage(s, language))
   const hiddenSources = requested.filter((s) => !sourceSupportsLanguage(s, language))
-  const groups = await Promise.all(eligible.map((s) => runSource(s, query, language, options.signal)))
+  const groups = await Promise.all(eligible.map((s) => runSource(s, query, language, options.signal, options.limit)))
   return { query, language, source, hiddenSources, groups }
 }
 

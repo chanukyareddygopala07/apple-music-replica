@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from app.languages import LANGUAGES, language_by_code, normalize_language
+from app.languages import LANGUAGES, language_by_code, normalize_language, track_language
 
 from .conftest import REPO_ROOT
 
@@ -54,6 +54,10 @@ def test_language_truth_table_matches_the_frontend_contract() -> None:
     # Chinese script variants keep their YouTube relevance hints.
     assert language_by_code("zh-Hans").relevance == "zh-Hans"
     assert language_by_code("zh-Hant").iso == "zh"
+    # The three languages the Home "Explore by Language" shelves lead with.
+    for code, label in (("hi", "Hindi"), ("ta", "Tamil"), ("te", "Telugu")):
+        option = language_by_code(code)
+        assert option is not None and option.label == label and option.iso == code
 
 
 def test_unknown_codes_normalise_to_all_on_both_sides() -> None:
@@ -61,3 +65,25 @@ def test_unknown_codes_normalise_to_all_on_both_sides() -> None:
     # agrees, so a stale URL can never send a junk filter to a provider.
     for raw in ("", None, "xx", "English", "ALL"):
         assert normalize_language(raw) == "all"
+
+
+def test_track_language_maps_provider_tags_to_app_codes() -> None:
+    # BCP-47 tags from `defaultAudioLanguage` collapse onto app codes:
+    # exact codes first, then the base subtag — no script/region guessing.
+    assert track_language("te") == "te"
+    assert track_language("hi") == "hi"
+    assert track_language("ta") == "ta"
+    assert track_language("ta-LK") == "ta"
+    assert track_language("EN") == "en"
+    assert track_language("pt-BR") == "pt"
+    assert track_language("zh-Hans") == "zh-Hans"
+    assert track_language("zh-hans-CN") == "zh-Hans"
+    assert track_language("zh-TW") == "zh"  # dialect unknown → plain Chinese
+
+
+def test_track_language_refuses_to_invent_languages() -> None:
+    # Codes outside the catalogue (and junk values) stay unlabelled: the
+    # track is preserved without a language rather than mislabelled.
+    for raw in (None, "", "  ", "all", "other", "ceb", "haw"):
+        assert track_language(raw) is None
+    assert track_language(123) is None  # type: ignore[arg-type]
