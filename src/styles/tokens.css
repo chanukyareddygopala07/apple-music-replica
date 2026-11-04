@@ -86,12 +86,13 @@
   --radius-lg: 12px;
   --radius-pill: 999px;
   --radius-hero: 16px;
-  --radius-card: 28px;
+  --radius-card: 20px;
 
-  /* Floating app frame (reference: ~5.6% x / ~8.3% y margins) */
-  --frame-x: min(5.6vw, 72px);
-  --frame-y: min(8.3vh, 80px);
-  --sidebar-width: 210px;
+  /* Floating app frame: a thin 16–24px inset so the shell fills the viewport;
+     the sage stage only shows as a subtle frame around the card. */
+  --frame-x: clamp(16px, 1.6vw, 24px);
+  --frame-y: clamp(16px, 2.2vh, 24px);
+  --sidebar-width: 220px;
   --rail-width: 320px;
   --top-bar-height: 80px;
   --player-height: 73px;

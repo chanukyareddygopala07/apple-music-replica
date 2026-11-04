@@ -447,10 +447,11 @@ a.section-title:hover {
   }
 }
 
-/* "Explore by Language" shelves: horizontal row scrollers under one header. */
+/* "Explore by Language" shelves: horizontal row scrollers under one header.
+   Rows widen with the viewport (titles truncate less on large desktops). */
 .lang-shelf .carousel-track .song-row {
-  width: 340px;
-  flex: 0 0 340px;
+  width: auto;
+  flex: 0 0 clamp(340px, 26vw, 420px);
 }
 
 @media (max-width: 640px) {
@@ -479,8 +480,11 @@ a.section-title:hover {
 
 .editorial-card {
   position: relative;
-  flex: 0 0 auto;
-  width: min(572px, 88vw);
+  /* Flexible pair: both hero cards share the central column width evenly
+     (capped so the reference proportions hold on very wide screens). */
+  flex: 1 1 380px;
+  min-width: min(340px, 86vw);
+  max-width: 640px;
   min-height: 200px;
   scroll-snap-align: start;
   padding: 26px 28px;
@@ -506,7 +510,9 @@ a.section-title:hover {
 
 .editorial-card .ed-title {
   margin-top: 6px;
-  max-width: 60%;
+  /* Reserve the artwork cluster (art clamp + 22px inset + 16px gutter, minus
+     the card's 28px left padding) so the title can never run under it. */
+  max-width: calc(100% - clamp(130px, calc(27% + 26px), 180px));
   font-size: var(--text-title1);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -516,7 +522,7 @@ a.section-title:hover {
 
 .editorial-card .ed-sub {
   margin-top: 6px;
-  max-width: 58%;
+  max-width: calc(100% - clamp(130px, calc(27% + 26px), 180px));
   font-size: var(--text-subhead);
   color: rgba(255, 255, 255, 0.9);
 }
@@ -557,7 +563,7 @@ a.section-title:hover {
   right: 22px;
   top: -16px;
   bottom: 18px;
-  width: 170px;
+  width: clamp(120px, 27%, 170px);
   pointer-events: none;
 }
 
@@ -609,6 +615,8 @@ a.section-title:hover {
 
 @media (max-width: 640px) {
   .editorial-card {
+    flex: 0 0 100%;
+    min-width: 0;
     width: 100%;
     min-height: 180px;
     padding: 22px;
@@ -671,6 +679,22 @@ a.section-title:hover {
   border-radius: 8px;
   object-fit: cover;
   background: var(--color-surface2);
+}
+
+/* Desktop centre column is wider now: grid rows get slightly larger art and
+   more breathing room. Rail and language-shelf rows keep the 40px treatment;
+   the mobile layout is unchanged (breakpoint below mirrors the grid change). */
+@media (min-width: 641px) {
+  .song-grid .song-row {
+    grid-template-columns: 44px minmax(0, 1fr) auto auto;
+    min-height: 60px;
+    padding: 8px 12px;
+  }
+
+  .song-grid .song-row .row-art {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 .song-row .row-main {
