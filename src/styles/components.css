@@ -474,13 +474,25 @@ a.section-title:hover {
 
 /* ---------- Editorial hero cards (reference: gradient card + artwork burst) ---------- */
 
+/* The hero row adapts to this column's real width — not the viewport, which
+   the rail and scrollbars shift — via container queries on .home-view.
+   Content width = container − 2 × content-gutter:
+     ≥1000px content → three equal columns (base rule)
+     820–999px      → three compact columns (base rule + compact card query)
+     560–819px      → two columns (query below)
+     <560px         → horizontal snap scroller (query below)               */
+.home-view {
+  container-type: inline-size;
+}
+
 .editorial-track {
-  /* Adapt to the central column: three cards fit whenever the width allows
-     (auto-fit collapses the empty track on wide screens); otherwise columns
-     reflow to two instead of clipping a card behind the rail. */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
-  gap: var(--space-6);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Equal implicit rows: in the two-column band the lone third card would
+     otherwise set its own (different) row height. */
+  grid-auto-rows: 1fr;
+  /* Row 16 keeps stacked heroes short (fold); column 24 matches sections. */
+  gap: var(--space-4) var(--space-6);
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -521,9 +533,10 @@ a.section-title:hover {
 
 .editorial-card .ed-title {
   margin-top: 6px;
-  /* Reserve the artwork cluster (art 30% + 22px inset + 16px gutter, minus
-     the card's 28px left padding) so the title can never run under it. */
-  max-width: calc(100% - clamp(106px, calc(30% + 27px), 180px));
+  /* Reserve the artwork cluster (art 30% + inset + 16px gutter vs the
+     card's left padding — sized for the compact padding below, with margin
+     to spare at the normal padding) so the title never runs under the art. */
+  max-width: calc(100% - clamp(94px, calc(30% + 26px), 164px));
   font-size: var(--text-title1);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -533,18 +546,32 @@ a.section-title:hover {
 
 .editorial-card .ed-sub {
   margin-top: 6px;
-  max-width: calc(100% - clamp(106px, calc(30% + 27px), 180px));
+  max-width: calc(100% - clamp(94px, calc(30% + 26px), 164px));
   font-size: var(--text-subhead);
   color: rgba(255, 255, 255, 0.9);
 }
 
-/* Three-up cards at ~1536px are narrow: step the title down the existing
-   type scale so it wraps in two lines instead of four (desktop only — the
-   mobile snap cards keep the full-size title). */
+/* Compact treatment below a 1000px content column (desktop only — the mobile
+   snap cards keep the full-size title and artwork-hidden design):
+   - cards key their padding off the home column band (a container cannot
+     query itself, so .editorial-card styles use the .home-view band);
+   - narrow cards (content ≤340px) step the title down the existing type
+     scale and pull the artwork in proportionally. */
 @media (min-width: 641px) {
+  @container (min-width: 624px) and (max-width: 1063px) {
+    .editorial-card {
+      padding: 18px 20px;
+    }
+  }
+
   @container (max-width: 340px) {
     .editorial-card .ed-title {
       font-size: var(--text-title3);
+    }
+
+    .editorial-card .ed-art {
+      right: 18px;
+      width: clamp(80px, 30%, 150px);
     }
   }
 }
@@ -658,11 +685,23 @@ a.section-title:hover {
   }
 }
 
-/* Two-column band (≈641–1509px): the third hero spans the full row so the
-   grid never leaves an empty half-cell beside it. */
-@media (min-width: 641px) and (max-width: 1509px) {
-  .editorial-card:last-child:nth-child(3) {
-    grid-column: 1 / -1;
+/* Hero columns follow the real container width (see .home-view above): two
+   equal columns in the 560–819px content band — the third card stays a
+   normal grid item — and the snap scroller only below 560px of content.
+   No card ever spans the full row on desktop. */
+@container (min-width: 624px) and (max-width: 883px) {
+  .editorial-track {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 623px) {
+  .editorial-track {
+    display: flex;
+  }
+
+  .editorial-card {
+    flex: 0 0 100%;
   }
 }
 
