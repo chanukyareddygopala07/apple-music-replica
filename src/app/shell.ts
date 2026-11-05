@@ -65,7 +65,6 @@ function sidebarHtml(): string {
       <div class="sidebar-footer">
         <button type="button" class="nav-item" data-action="cycle-theme">${icon('sun')}<span>Appearance</span></button>
         <button type="button" class="nav-item" data-action="settings">${icon('info')}<span>About & Settings</span></button>
-        <p class="sidebar-meta">Realaxify — an independent multilingual music site.<br/>Not affiliated with Apple.</p>
       </div>
     </nav>`
 }

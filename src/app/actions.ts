@@ -332,7 +332,6 @@ async function openSettings(): Promise<void> {
       ${providers.map((p) => `${p.name}: ${p.configured ? 'configured' : 'off'} — ${p.description}`).join('<br/>')}<br/><br/>
       <strong>Keyboard</strong><br/>
       Space play/pause · ←/→ seek 5s · ↑/↓ volume · M mute · N/P next/prev · S shuffle · R repeat · Q queue · / search<br/><br/>
-      Realaxify is an independent multilingual music discovery and streaming site. Not affiliated with Apple.
       Demo audio: SoundHelix.com. Current queue: ${snap.contextLabel ?? '—'}`
     dlg.appendChild(info)
   }
