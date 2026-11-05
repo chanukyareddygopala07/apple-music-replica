@@ -40,12 +40,15 @@ function navItemHtml(item: { href: string; label: string; icon: IconName }): str
   return `<a class="nav-item" href="${item.href}" data-nav data-nav-href="${item.href}">${icon(item.icon)}<span>${item.label}</span></a>`
 }
 
+const BRAND_LOGO_SRC = `${import.meta.env.BASE_URL}realaxify-logo.png`
+const BRAND_MARK_SRC = `${import.meta.env.BASE_URL}realaxify-mark.png`
+
 function sidebarHtml(): string {
   return `
     <nav class="sidebar" aria-label="Main">
       <div class="sidebar-brand">
-        <span class="brand-mark" aria-hidden="true">${icon('sparkle')}</span>
-        <span>Realaxify</span>
+        <img class="brand-logo" src="${BRAND_LOGO_SRC}" alt="" width="1163" height="283" />
+        <span class="sr-only">Realaxify</span>
       </div>
       <div class="sidebar-search">
         <a class="nav-item" href="/search" data-nav data-nav-href="/search">${icon('search')}<span>Search</span></a>
@@ -77,7 +80,9 @@ function mobileChromeHtml(): string {
   return `
     <header class="mobile-topbar">
       <button type="button" class="icon-btn" data-action="open-drawer" aria-label="Open menu">${icon('menu')}</button>
-      <div class="brand"><span aria-hidden="true">${icon('sparkle')}</span> Realaxify</div>
+      <div class="brand">
+        <img class="brand-mark-img" src="${BRAND_MARK_SRC}" alt="Realaxify" width="310" height="278" />
+      </div>
       <a class="icon-btn" href="/search" data-nav aria-label="Search">${icon('search')}</a>
     </header>
     <div class="mobile-scrim" data-drawer-scrim hidden></div>
